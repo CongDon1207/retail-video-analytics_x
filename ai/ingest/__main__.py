@@ -1,0 +1,237 @@
+"""
+CLI điều phối ingest -> detect -> track -> emit.
+Hỗ trợ backend GStreamer (mặc định) và fallback OpenCV, tracker DeepSORT hoặc Simple.
+"""
+
+import os
+import time
+import uuid
+import argparse
+from datetime import datetime, timezone
+
+import cv2
+
+
+def safe_int_env(env_var: str, default: str) -> int:
+    """Parse env var to int safely, return default if invalid."""
+    try:
+        return int(os.getenv(env_var, default))
+    except ValueError:
+        return int(default)
+
+
+def safe_float_env(env_var: str, default: str) -> float:
+    """Parse env var to float safely, return default if invalid."""
+    try:
+        return float(os.getenv(env_var, default))
+    except ValueError:
+        return float(default)
+
+try:
+    from .gst_source import GstSource  # type: ignore
+    _GST_AVAILABLE = True
+except Exception:
+    GstSource = None  # type: ignore
+    _GST_AVAILABLE = False
+
+from .cv_source import CvSource
+
+
+def _maybe_init_detector(args):
+    if not args.yolo:
+        return None
+    from ai.detect.yolo_detector import YoloDetector
+    classes = [c.strip() for c in args.classes.split(",")] if args.classes else None
+    return YoloDetector(model_path=args.model, conf=args.conf, classes=classes)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    # Ingest & hiển thị
+    ap.add_argument("--src", required=True, help="Đường dẫn file hoặc RTSP URL")
+    # Hỗ trợ alias thân thiện: gstreamer/gst và opencv/cv/cv2
+    backend_default_env = os.getenv("INGEST_BACKEND", "gst").lower()
+    ap.add_argument(
+        "--backend",
+        type=str,
+        choices=["gst", "gstreamer", "cv", "opencv", "cv2"],
+        default=backend_default_env,
+        help=(
+            "Chọn backend đọc video: 'gst'/'gstreamer' (GStreamer) hoặc "
+            "'cv'/'opencv'/'cv2' (OpenCV)"
+        ),
+    )
+    ap.add_argument("--display", type=int, default=safe_int_env("DISPLAY", "1"), help="Hiển thị preview (1/0)")
+    ap.add_argument("--fps_log", type=int, default=safe_int_env("FPS_LOG_INTERVAL", "30"), help="Chu kỳ log FPS")
+
+    # YOLO (detect)
+    ap.add_argument("--yolo", type=int, default=1, help="Bật YOLO detect (1/0)")
+    ap.add_argument("--model", type=str, default=os.getenv("YOLO_MODEL", "yolov8n.pt"), help="Model YOLOv8")
+    ap.add_argument("--conf", type=float, default=safe_float_env("YOLO_CONF", "0.25"), help="Ngưỡng confidence")
+    ap.add_argument(
+        "--classes",
+        type=str,
+        default=os.getenv("YOLO_CLASSES", "person"),
+        help="Lọc class, ví dụ: 'person,bag'",
+    )
+
+    # Tracking
+    ap.add_argument("--track", type=int, default=safe_int_env("ENABLE_TRACK", "1"), help="Bật tracking (1/0)")
+    # DeepSORT tuning
+    ap.add_argument("--track_max_age", type=int, default=safe_int_env("TRACK_MAX_AGE", "30"), help="Frames giữ track khi bị mất (max_age)")
+    ap.add_argument("--track_n_init", type=int, default=safe_int_env("TRACK_N_INIT", "3"), help="Số lần hit để xác nhận track (n_init)")
+    ap.add_argument("--track_iou", type=float, default=safe_float_env("TRACK_IOU", "0.7"), help="Ngưỡng IoU cho matching (max_iou_distance)")
+    ap.add_argument("--track_nms_overlap", type=float, default=safe_float_env("TRACK_NMS_OVERLAP", "1.0"), help="NMS max overlap trong tracker")
+    ap.add_argument("--track_embedder", type=str, default=os.getenv("TRACK_EMBEDDER", "mobilenet"), help="Loại embedder appearance (vd: mobilenet)")
+    ap.add_argument("--track_embedder_gpu", type=int, default=safe_int_env("TRACK_EMBEDDER_GPU", "0"), help="Dùng GPU cho embedder (1/0)")
+    ap.add_argument("--track_half", type=int, default=safe_int_env("TRACK_EMBEDDER_HALF", "0"), help="FP16 cho embedder (1/0)")
+
+    # Emit NDJSON (detection per-frame) & metadata nguồn
+    ap.add_argument("--emit", type=str, default="none", choices=["none", "detection"], help="Kiểu dữ liệu xuất NDJSON")
+    ap.add_argument("--out", type=str, default="-", help="Đường dẫn file NDJSON (mặc định '-' = stdout)")
+    ap.add_argument("--store_id", type=str, default=os.getenv("STORE_ID", "store_01"))
+    ap.add_argument("--camera_id", type=str, default=os.getenv("CAMERA_ID", "cam_01"))
+    ap.add_argument("--stream_id", type=str, default=os.getenv("STREAM_ID", "stream_01"))
+    ap.add_argument("--run_id", type=str, default=os.getenv("PIPELINE_RUN_ID", ""))
+
+    args = ap.parse_args()
+
+    # Detector & Tracker
+    det = _maybe_init_detector(args)
+    tracker = None
+    if args.track:
+        try:
+            from ai.track.deepsort_tracker import DeepSortTracker
+            tracker = DeepSortTracker(
+                max_age=args.track_max_age,
+                n_init=args.track_n_init,
+                max_iou_distance=args.track_iou,
+                nms_max_overlap=args.track_nms_overlap,
+                embedder=args.track_embedder,
+                embedder_gpu=bool(args.track_embedder_gpu),
+                half=bool(args.track_half),
+            )
+        except Exception as e:
+            print("[ERROR] Không khởi tạo được DeepSORT. Hãy cài đặt deep-sort-realtime: 'pip install deep-sort-realtime'.")
+            print(f"Chi tiết: {e}")
+            raise SystemExit(2)
+
+    # Emitter NDJSON
+    emitter = None
+    if args.emit != "none":
+        from ai.emit.json_emitter import JsonEmitter
+
+        emitter = JsonEmitter(out_path=args.out)
+
+    pipeline_run_id = args.run_id if args.run_id else uuid.uuid4().hex
+    source_info = {"store_id": args.store_id, "camera_id": args.camera_id, "stream_id": args.stream_id}
+
+    # Mở nguồn video
+    # Chuẩn hóa backend về giá trị chuẩn: 'gst' hoặc 'cv'
+    backend_in = (args.backend or "gst").lower()
+    if backend_in in ("gstreamer", "gst"):
+        backend = "gst"
+    elif backend_in in ("opencv", "cv", "cv2"):
+        backend = "cv"
+    else:
+        backend = "gst"
+    if backend == "gst" and not _GST_AVAILABLE:
+        print("[WARN] GStreamer backend không sẵn sàng (thiếu gi). Tự động chuyển sang OpenCV.")
+        backend = "cv"
+
+    if backend == "gst":
+        src = GstSource(args.src)  # type: ignore
+    else:
+        src = CvSource(args.src)
+
+    if not src.open():
+        print(f"[ERROR] Không mở được nguồn: {args.src} (backend={backend})")
+        raise SystemExit(2)
+
+    t0 = time.time()
+    frames = 0
+    det_total = 0
+    win = "Ingestion Preview (q=quit)"
+
+    try:
+        while True:
+            ok, frame = src.read()
+            if not ok or frame is None:
+                print("[INFO] End of stream or read error.")
+                break
+            frames += 1
+
+            tracked = None
+            dets = []
+            # Detect + Track
+            if det is not None:
+                dets = det.infer(frame)  # [(x1,y1,x2,y2,conf,cls_id,cls_name)]
+                det_total += len(dets)
+
+                if tracker:
+                    tracked = tracker.update(dets, frame)  # [(x1,y1,x2,y2,tid,conf,cls)]
+                else:
+                    tracked = [(x1, y1, x2, y2, -1, conf, cls) for (x1, y1, x2, y2, conf, _, cls) in dets]
+
+                # Vẽ bbox + ID (nếu bật display)
+                if args.display:
+                    for x1, y1, x2, y2, tid, cf, name in tracked:
+                        color = (0, 255, 0) if tid > 0 else (255, 0, 0)
+                        label = f"{'ID'+str(tid)+':' if tid>0 else ''}{name}:{cf:.2f}"
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                        cv2.putText(
+                            frame,
+                            label,
+                            (x1, max(0, y1 - 5)),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5,
+                            color,
+                            1,
+                            cv2.LINE_AA,
+                        )
+
+            # Emit NDJSON (detection per-frame)
+            if emitter and det is not None:
+                h, w = frame.shape[:2]
+                capture_ts = datetime.now(timezone.utc).isoformat()
+                emitter.emit_detection(
+                    schema_version="1.0",
+                    pipeline_run_id=pipeline_run_id,
+                    source=source_info,
+                    frame_index=frames,
+                    capture_ts=capture_ts,
+                    image_size=(w, h),
+                    dets=dets,
+                    tracked=tracked if tracker else None,
+                )
+
+            # Hiển thị
+            if args.display:
+                cv2.imshow(win, frame)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    print("[INFO] Quit by user.")
+                    break
+
+            # Log
+            if frames % args.fps_log == 0:
+                fps = frames / (time.time() - t0)
+                h, w = frame.shape[:2]
+                extra = ""
+                if det is not None:
+                    active_tracks = 0
+                    if tracker is not None:
+                        if hasattr(tracker, "tracker") and hasattr(tracker.tracker, "tracks"):
+                            active_tracks = len(tracker.tracker.tracks)
+                    extra = f" | det_total={det_total}" + (f" | active_tracks={active_tracks}" if tracker else "")
+                print(f"[INFO] Frames={frames} | Res={w}x{h} | ~{fps:.1f} FPS{extra}")
+
+    finally:
+        src.release()
+        if emitter:
+            emitter.close()
+        if args.display:
+            cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    main()
