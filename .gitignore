@@ -1,1 +1,45 @@
 AGENTS.md
+
+# Bytecode / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv312/
+venv/
+env/
+
+# IDE / Editor settings
+.vscode/
+.idea/
+*.code-workspace
+
+# Build / distribution artifacts
+build/
+dist/
+*.egg-info/
+
+# Logs & temp
+*.log
+logs/
+tmp/
+temp/
+
+# Checkpoints / model weights (except explicitly tracked yolo file)
+checkpoints/
+weights/
+*.pt
+!yolov8n.pt
+
+
+# OS / misc
+.DS_Store
+Thumbs.db
+
+# Python tooling
+.mypy_cache/
+.pytest_cache/
+coverage.xml
+.coverage*
+
