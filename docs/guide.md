@@ -28,22 +28,7 @@ ai/
     └── json_emitter.py       # NDJSON metadata export
 ```
 
-## 🔧 Cài đặt môi trường
 
-**Python 3.12** (khuyến nghị trên Windows):
-```bash
-py -3.12 -m venv .venv312
-. .venv312/Scripts/activate
-```
-
-```bash
-# Cài dependencies chính
-py -3.12 -m pip install --upgrade pip wheel setuptools
-py -3.12 -m pip install ultralytics opencv-python deep-sort-realtime
-
-# Kiểm tra cài đặt
-py -3.12 -m pip list | grep -E "(ultralytics|opencv|deep-sort)"
-```
 ## 🔧 Cài đặt môi trường
 
 **Python 3.12** (khuyến nghị trên Windows)
@@ -79,7 +64,7 @@ Lưu ý: nếu bạn không muốn/không thể kích hoạt venv, có thể ch�
 3) Cài dependencies (chạy sau khi đã activate hoặc dùng `py -3.12 -m pip`)
 
 ```bash
-# (sau khi đã activate) hoặc
+# (sau khi đã activate) 
 py -3.12 -m pip install --upgrade pip wheel setuptools
 py -3.12 -m pip install ultralytics opencv-python deep-sort-realtime
 ```
@@ -192,10 +177,6 @@ py -3.12 -m ai.ingest \
   --track_n_init 3 \
   --track_iou 0.8 \
   --track_nms_overlap 0.9
-```
-Kiểm tra kết quả NDJSON (số lượng ID duy nhất cho class person = 3):
-```bash
-py -3.12 scripts\\analyze_ndjson.py detections_midtown_t3.ndjson
 ```
 
 Nếu có GPU, có thể bật embedder GPU để tăng re-identification: `--track_embedder_gpu 1`
