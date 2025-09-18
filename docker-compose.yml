@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+  flink-jobmanager:
+    image: flink:1.18.1-scala_2.12-java11
+    container_name: flink-jobmanager
+    command: jobmanager
+    ports:
+      - "8081:8081"
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address=flink-jobmanager
+        taskmanager.numberOfTaskSlots=4
+        parallelism.default=2
+    volumes:
+      - ./infrastructure/flink/conf/flink-conf.yaml:/opt/flink/conf/flink-conf.yaml:ro
+      - ./infrastructure/flink/conf/log4j-console.properties:/opt/flink/conf/log4j-console.properties:ro
+      - ./flink-jobs/lib:/opt/flink/lib:ro
+      - flink_state:/opt/flink/state
+    networks:
+      - retail-net
+
+  flink-taskmanager:
+    image: flink:1.18.1-scala_2.12-java11
+    container_name: flink-taskmanager
+    command: taskmanager
+    depends_on:
+      - flink-jobmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address=flink-jobmanager
+        taskmanager.numberOfTaskSlots=4
+        parallelism.default=2
+    volumes:
+      - ./infrastructure/flink/conf/flink-conf.yaml:/opt/flink/conf/flink-conf.yaml:ro
+      - ./infrastructure/flink/conf/log4j-console.properties:/opt/flink/conf/log4j-console.properties:ro
+      - ./flink-jobs/lib:/opt/flink/lib:ro
+      - flink_state:/opt/flink/state
+    networks:
+      - retail-net
+
+volumes:
+  flink_state:
+    driver: local
+
+networks:
+  retail-net:
+    driver: bridge
