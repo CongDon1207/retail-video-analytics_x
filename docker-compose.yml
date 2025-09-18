@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   flink-jobmanager:
     image: flink:1.18.1-scala_2.12-java11
@@ -7,18 +5,18 @@ services:
     command: jobmanager
     ports:
       - "8081:8081"
-    environment:
-      FLINK_PROPERTIES: |
-        jobmanager.rpc.address=flink-jobmanager
-        taskmanager.numberOfTaskSlots=4
-        parallelism.default=2
+      # - "9249:9249"   # (tuỳ chọn) metrics Prometheus
     volumes:
-      - ./infrastructure/flink/conf/flink-conf.yaml:/opt/flink/conf/flink-conf.yaml:ro
-      - ./infrastructure/flink/conf/log4j-console.properties:/opt/flink/conf/log4j-console.properties:ro
-      - ./flink-jobs/lib:/opt/flink/lib:ro
+      - ./infrastructure/flink/conf:/opt/flink/conf  
+      # Nếu cần đặt JAR job ,dùng usrlib:
+      #- ./flink-jobs/lib:/opt/flink/usrlib:ro
       - flink_state:/opt/flink/state
-    networks:
-      - retail-net
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks: [retail-net]
 
   flink-taskmanager:
     image: flink:1.18.1-scala_2.12-java11
@@ -26,18 +24,13 @@ services:
     command: taskmanager
     depends_on:
       - flink-jobmanager
-    environment:
-      FLINK_PROPERTIES: |
-        jobmanager.rpc.address=flink-jobmanager
-        taskmanager.numberOfTaskSlots=4
-        parallelism.default=2
+    # ports:
+    #   - "9250:9249"   # (tuỳ chọn) metrics Prometheus TM
     volumes:
-      - ./infrastructure/flink/conf/flink-conf.yaml:/opt/flink/conf/flink-conf.yaml:ro
-      - ./infrastructure/flink/conf/log4j-console.properties:/opt/flink/conf/log4j-console.properties:ro
-      - ./flink-jobs/lib:/opt/flink/lib:ro
+      - ./infrastructure/flink/conf:/opt/flink/conf  
+      #- ./flink-jobs/lib:/opt/flink/usrlib:ro  # job jars (nếu có)
       - flink_state:/opt/flink/state
-    networks:
-      - retail-net
+    networks: [retail-net]
 
 volumes:
   flink_state:
