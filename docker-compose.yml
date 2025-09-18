@@ -1,22 +1,67 @@
 services:
+  pulsar-broker:
+    image: apachepulsar/pulsar:3.2.0
+    container_name: pulsar-broker
+    command: ["/bin/bash", "-c", "bin/pulsar standalone"]
+    ports:
+      - "6650:6650"
+      - "8080:8080"
+    volumes:
+      - ./infrastructure/pulsar/conf/standalone.conf:/pulsar/conf/standalone.conf
+      - ./infrastructure/pulsar/conf/client.conf:/pulsar/conf/client.conf
+      - ./infrastructure/pulsar/scripts:/pulsar/scripts
+      - ./infrastructure/pulsar/schema:/pulsar/schema
+      - pulsar_data:/pulsar/data
+    environment:
+      PULSAR_MEM: "-Xms512m -Xmx512m -XX:MaxDirectMemorySize=1g"
+    healthcheck:
+      test: ["CMD", "/pulsar/bin/pulsar-admin", "brokers", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks:
+      - retail-net
+
+  pulsar-init:
+    image: apachepulsar/pulsar:3.2.0
+    container_name: pulsar-init
+    depends_on:
+      pulsar-broker:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/pulsar/scripts/init-topics.sh"]
+    volumes:
+      - ./infrastructure/pulsar/scripts:/pulsar/scripts
+      - ./infrastructure/pulsar/schema:/pulsar/schema
+      - ./infrastructure/pulsar/conf/client.conf:/pulsar/conf/client.conf
+    environment:
+      PULSAR_MEM: "-Xms256m -Xmx256m -XX:MaxDirectMemorySize=256m"
+    restart: "no"
+    networks:
+      - retail-net
+
   flink-jobmanager:
     image: flink:1.18.1-scala_2.12-java11
     container_name: flink-jobmanager
     command: jobmanager
     ports:
       - "8081:8081"
-      # - "9249:9249"   # (tuỳ chọn) metrics Prometheus
     volumes:
-      - ./infrastructure/flink/conf:/opt/flink/conf  
-      # Nếu cần đặt JAR job ,dùng usrlib:
-      #- ./flink-jobs/lib:/opt/flink/usrlib:ro
+      - ./infrastructure/flink/conf:/opt/flink/conf
+      - ./flink-jobs/lib:/opt/flink/usrlib
       - flink_state:/opt/flink/state
+    environment:
+      JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address=flink-jobmanager
+        taskmanager.numberOfTaskSlots=4
+        parallelism.default=2
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8081"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/overview"]
       interval: 10s
       timeout: 5s
       retries: 30
-    networks: [retail-net]
+    networks:
+      - retail-net
 
   flink-taskmanager:
     image: flink:1.18.1-scala_2.12-java11
@@ -24,16 +69,23 @@ services:
     command: taskmanager
     depends_on:
       - flink-jobmanager
-    # ports:
-    #   - "9250:9249"   # (tuỳ chọn) metrics Prometheus TM
     volumes:
-      - ./infrastructure/flink/conf:/opt/flink/conf  
-      #- ./flink-jobs/lib:/opt/flink/usrlib:ro  # job jars (nếu có)
+      - ./infrastructure/flink/conf:/opt/flink/conf
+      - ./flink-jobs/lib:/opt/flink/usrlib
       - flink_state:/opt/flink/state
-    networks: [retail-net]
+    environment:
+      JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address=flink-jobmanager
+        taskmanager.numberOfTaskSlots=4
+        parallelism.default=2
+    networks:
+      - retail-net
 
 volumes:
   flink_state:
+    driver: local
+  pulsar_data:
     driver: local
 
 networks:

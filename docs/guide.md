@@ -334,6 +334,26 @@ py -3.12 -m ai.ingest \
   --display 1
 ```
 
+## 🛠️ Khởi động hạ tầng Pulsar & Flink
+
+```bash
+# Bật Pulsar (broker + script init schema/topic)
+docker compose up -d pulsar-broker pulsar-init
+
+# Bật Flink JobManager + TaskManager
+docker compose up -d flink-jobmanager flink-taskmanager
+
+# Kiểm tra nhanh
+docker compose ps
+curl http://localhost:8081/overview
+docker compose logs pulsar-init | tail
+```
+
+**Lưu ý:**
+- `pulsar-init` chỉ chạy một lần để tạo tenant/topic, có thể xoá container sau khi hoàn tất.
+- Muốn khởi chạy lại init, dùng `docker compose run --rm pulsar-init`.
+- Các volume `pulsar_data` và `flink_state` giữ trạng thái giữa các lần restart.
+
 ---
 
 **💡 Tip**: Luôn dùng `--display 1` khi test để theo dõi trực quan pipeline hoạt động!
