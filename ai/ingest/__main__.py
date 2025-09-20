@@ -28,7 +28,7 @@ class Detection:
     class_name: str
     track_id: Optional[int] = None
 
-
+# Nơi định nghĩa toàn bộ tham số dòng lệnh (command-line arguments)
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Pipeline ingest video tối giản với YOLOv8 và DeepSORT"
@@ -68,7 +68,7 @@ def _parse_classes(raw: Optional[str]) -> Optional[List[str]]:
         return None
     return classes
 
-
+# Lấy video bằng backend nào (OpenCV hay GStreamer)
 def _build_source(backend: str, uri: str) -> VideoSource:
     if backend == "gst":
         try:
@@ -85,13 +85,13 @@ def _build_source(backend: str, uri: str) -> VideoSource:
     print(f"[INFO] Đang sử dụng backend OpenCV cho {uri}")
     return cv_source
 
-
+# Chuẩn bị YOLO detect dựa trên tham số dòng lệnh.
 def _prepare_detector(enable: bool, model: str, conf: float, classes: Optional[List[str]]) -> Optional[YoloDetector]:
     if not enable:
         return None
     return YoloDetector(model_path=model, conf=conf, classes=classes)
 
-
+# Chuẩn bị DeepSORT tracker dựa trên tham số dòng lệnh.
 def _prepare_tracker(enable: bool, args: argparse.Namespace) -> Optional[DeepSortTracker]:
     if not enable:
         return None
@@ -105,7 +105,9 @@ def _prepare_tracker(enable: bool, args: argparse.Namespace) -> Optional[DeepSor
         half=bool(args.track_half),
     )
 
-
+# Tính toán xem hai hộp “đè” lên nhau bao nhiêu phần trăm,
+# và dùng kết quả đó để quyết định có gán detection cho track, 
+# hay loại bỏ detection trùng lặp
 def _compute_iou(box_a: Tuple[int, int, int, int], box_b: Tuple[int, int, int, int]) -> float:
     ax1, ay1, ax2, ay2 = box_a
     bx1, by1, bx2, by2 = box_b
@@ -121,7 +123,7 @@ def _compute_iou(box_a: Tuple[int, int, int, int], box_b: Tuple[int, int, int, i
     denom = area_a + area_b - inter_area
     return inter_area / denom if denom else 0.0
 
-
+# Để gán track_id (ID theo dõi) cho từng detection dựa vào danh sách track mà DeepSORT đã tạo.
 def _attach_track_ids(detections: List[Detection], tracks: Sequence[TrackResult], threshold: float = 0.3) -> None:
     for det in detections:
         best_id: Optional[int] = None
@@ -134,7 +136,7 @@ def _attach_track_ids(detections: List[Detection], tracks: Sequence[TrackResult]
                 best_id = track.track_id
         det.track_id = best_id
 
-
+# Vẽ kết quả detection/tracking trực tiếp lên frame video để hiển thị cho người dùng.
 def _draw_preview(frame: np.ndarray, detections: Sequence[Detection]) -> np.ndarray:
     canvas = frame.copy()
     for det in detections:
@@ -158,6 +160,7 @@ def _draw_preview(frame: np.ndarray, detections: Sequence[Detection]) -> np.ndar
 
 
 def run() -> None:
+    # Parse tham số từ dòng lệnh
     args = _parse_args()
     classes = _parse_classes(args.classes)
     enable_yolo = bool(args.yolo)
@@ -165,18 +168,22 @@ def run() -> None:
     if args.track and not enable_track:
         print("[WARN] DeepSORT cần YOLO, bỏ qua --track=1 vì --yolo=0")
 
-    source = _build_source(args.backend, args.src)
-    detector = _prepare_detector(enable_yolo, args.model, args.conf, classes)
-    tracker = _prepare_tracker(enable_track, args)
-    emitter = JsonEmitter(args.out) if args.emit == "detection" else None
+    # Khởi tạo các component chính
+    source = _build_source(args.backend, args.src)  # Video source (CV/GStreamer)
+    detector = _prepare_detector(enable_yolo, args.model, args.conf, classes)  # YOLO detector
+    tracker = _prepare_tracker(enable_track, args)  # DeepSORT tracker
+    emitter = JsonEmitter(args.out) if args.emit == "detection" else None  # JSON output
 
+    # Setup runtime variables
     pipeline_run_id = args.run_id or uuid.uuid4().hex
     frame_index = 0
     started_at = time.time()
     window_name = "retail-video"
 
     try:
+        # Main processing loop - xử lý từng frame
         while True:
+            # Đọc frame từ video source
             ok, frame = source.read()
             if not ok or frame is None:
                 break
@@ -184,6 +191,7 @@ def run() -> None:
             frame_index += 1
             detections: List[Detection] = []
 
+            # Chạy YOLO detection nếu được bật
             if detector:
                 raw_dets = detector.infer(frame)
                 for x1, y1, x2, y2, conf, cls_id, cls_name in raw_dets:
@@ -196,6 +204,7 @@ def run() -> None:
                         )
                     )
 
+            # Chạy tracking nếu có detections và tracker được bật
             tracks: Sequence[TrackResult] = []
             if tracker:
                 tracker_input = [
@@ -203,11 +212,12 @@ def run() -> None:
                     for d in detections
                 ]
                 tracks = tracker.update(tracker_input, frame)
-                _attach_track_ids(detections, tracks)
+                _attach_track_ids(detections, tracks)  # Gán track_id cho detections
             elif emitter and not detector:
                 # Không có detection để ghi log -> bỏ qua frame
                 detections = []
 
+            # Xuất JSON nếu có detections và emitter được bật
             if emitter and detections:
                 width = int(frame.shape[1])
                 height = int(frame.shape[0])
@@ -234,13 +244,15 @@ def run() -> None:
                     ],
                 )
 
+            # Hiển thị preview window nếu được bật
             if args.display:
                 preview = _draw_preview(frame, detections)
                 cv2.imshow(window_name, preview)
                 key = cv2.waitKey(1) & 0xFF
-                if key in (27, ord("q")):
+                if key in (27, ord("q")):  # ESC hoặc 'q' để thoát
                     break
 
+            # Log thống kê FPS định kỳ
             if args.fps_log and frame_index % args.fps_log == 0:
                 elapsed = time.time() - started_at
                 fps = frame_index / elapsed if elapsed else 0.0
