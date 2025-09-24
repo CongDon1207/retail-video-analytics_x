@@ -1,4 +1,4 @@
-# Hướng dẫn chạy Video Pipeline (Ingest → YOLOv8 → DeepSORT → Export)
+# Hướng dẫn Video Analytics Pipeline (Ingest → YOLOv8 → DeepSORT → Export)
 
 Video pipeline thực hiện luồng xử lý video hoàn chỉnh: **Ingest video** → **Object Detection** → **Object Tracking** → **Export Metadata**
 
@@ -12,23 +12,22 @@ Video pipeline thực hiện luồng xử lý video hoàn chỉnh: **Ingest vide
 
 **Luồng xử lý**: `Video Frame` → `YOLO Detection` → `DeepSORT Tracking` → `JSON Metadata` → `Display/Export`
 
-## 📁 Cấu trúc Core Files
+## 📁 Cấu trúc chi tiết thư mục /ai
 
 ```
 ai/
-├── ingest/
-│   ├── __main__.py           # CLI chính điều phối pipeline
-│   ├── gst_source.py         # GStreamer video source (RTSP/MP4)
-│   └── cv_source.py          # OpenCV video source (fallback)
-├── detect/
-│   └── yolo_detector.py      # YOLOv8 object detection
-├── track/
-│   └── deepsort_tracker.py   # DeepSORT multi-object tracking
-└── emit/
-    └── json_emitter.py       # NDJSON metadata export
+├── ingest/                   # Module đọc và điều phối video
+│   ├── __init__.py          # Package init (4 dòng)
+│   ├── __main__.py          # ⭐ CLI chính điều phối pipeline (160 dòng)
+│   ├── gst_source.py        # GStreamer video backend (90 dòng)
+│   └── cv_source.py         # OpenCV video backend (32 dòng)
+├── detect/                  # Module object detection
+│   └── yolo_detector.py     # ⭐ YOLOv8 wrapper (33 dòng)
+├── track/                   # Module object tracking  
+│   └── deepsort_tracker.py  # ⭐ DeepSORT wrapper (80 dòng)
+└── emit/                    # Module xuất kết quả
+    └── json_emitter.py      # ⭐ NDJSON metadata exporter (90 dòng)
 ```
-
-
 ## 🔧 Cài đặt môi trường
 
 **Python 3.12** (khuyến nghị trên Windows)
@@ -129,6 +128,7 @@ py -3.12 -m ai.ingest \
   --out detections_output.ndjson
 ```
 
+```bash
 py -3.12 -m ai.ingest \
   --backend cv \
   --src "data/videos/video.mp4" \
@@ -137,32 +137,9 @@ py -3.12 -m ai.ingest \
   --display 1 \
   --emit detection \
   --out detections_output.ndjson
-
-**Tham số bổ sung:**
-- `--emit detection`: Xuất detection metadata mỗi frame
-- `--out detections_output.ndjson`: File output chứa metadata
-
-### Bước 3b: Cấu hình DeepSORT để giảm nhảy ID (ví dụ Midtown)
-
-Mục tiêu: chỉ còn 3 ID ổn định cho 3 người trong video "Midtown corner store …".
-
-Chạy lệnh sau (đã tinh chỉnh các tham số DeepSORT):
-```bash
-py -3.12 -m ai.ingest \
-  --backend cv \
-  --src "data/videos/Midtown corner store surveillance video 11-25-18.mp4" \
-  --yolo 1 \
-  --track 1 \
-  --display 1 \
-  --emit detection \
-  --out detections_midtown_t3.ndjson \
-  --conf 0.25 \
-  --track_max_age 90 \
-  --track_n_init 3 \
-  --track_iou 0.8 \
-  --track_nms_overlap 0.9
 ```
 
+<<<<<<< HEAD
 ```bash
 py -3.12 -m ai.ingest \
   --backend cv \
@@ -396,3 +373,5 @@ Mỗi detection: `class`, `class_id`, `conf`, `bbox{x1,y1,x2,y2}`, `bbox_norm{x,
 - Lỗi `gi` không có: backend GStreamer sẽ fallback sang OpenCV; nếu muốn dùng GStreamer, xem mục GStreamer Backend.
 - Không thấy detection trên video mẫu: bình thường. Hãy chạy với video thực tế có người/vật.
 - RTSP lag: thử GStreamer backend (`--backend gst`) sẽ ổn định hơn OpenCV cho H.264/RTSP.
+=======
+>>>>>>> main
