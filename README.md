@@ -29,24 +29,33 @@
 
 ---
 
-## 🗂 Cấu trúc thư mục (đề xuất)
+## 🗂 Cấu trúc thư mục hiện tại
 
 ```
 .
-├─ docker/                # compose, configs của services
-│  ├─ pulsar/
-│  ├─ flink/
-│  ├─ iceberg-rest/       # REST Catalog + JDBC backend (Postgres)
-│  ├─ trino/
-│  ├─ minio/
-│  ├─ prometheus/
-│  ├─ grafana/
-│  └─ airflow/
-├─ ingestion/             # gstreamer + yolo + deepsort producer (Python)
-├─ flink-jobs/            # SQL/JAR cho Bronze→Silver→Gold
-├─ sql/                   # DDL Iceberg, Trino samples
-├─ dashboards/            # Grafana JSON
-├─ docs/                  # hình kiến trúc, tài liệu
+├─ ai/                    # AI modules cho video analytics
+│  ├─ detect/             # YOLOv8 detector implementation
+│  ├─ emit/               # JSON emitter cho kết quả detection
+│  ├─ ingest/             # Video source handling (CV2, GStreamer)
+│  └─ track/              # DeepSort tracker implementation
+├─ infrastructure/        # Infrastructure configs và deployment
+│  ├─ flink/              # Apache Flink configuration
+│  └─ pulsar/             # Apache Pulsar configuration
+├─ configs/               # Configuration files
+│  └─ .env.example        # Environment variables template
+├─ data/                  # Sample data và test videos
+│  ├─ synth.avi          # Synthetic test video
+│  └─ videos/            # Sample surveillance videos
+├─ docs/                  # Documentation và design
+│  ├─ architecture.jpg   # System architecture diagram
+│  ├─ guide.md          # User guide
+│  ├─ CHANGELOG.md      # Project history log
+│  └─ HANDOFF.md        # Current status và next steps
+├─ scripts/              # Utility scripts
+│  └─ make_synth_video.py # Generate synthetic test data
+├─ docker-compose.yml    # Docker services orchestration
+├─ yolov8n.pt           # Pre-trained YOLOv8 nano model
+├─ detections_output.ndjson # Sample detection outputs
 └─ README.md
 ```
 
