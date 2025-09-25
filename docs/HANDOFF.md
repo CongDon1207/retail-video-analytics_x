@@ -1,64 +1,67 @@
 # HANDOFF - Retail Video Analytics
 
 ## Current Status (Trạng thái hiện tại)
-**Branch**: `infra/setup`  
-**Đang làm**: Hoàn thiện infrastructure setup và integration testing  
-**Lý do**: Cần hoàn thành full pipeline trước khi merge về main
+**Branch**: `don`  
+**Đang làm**: Infrastructure setup hoàn thành, đang test integration và tạo documentation  
+**Lý do**: Infrastructure đã stable, cần hoàn thành AI pipeline integration
 
 ## TODO & Next Steps (Các bước tiếp theo - ưu tiên)
 
 ### High Priority
-1. **Complete Docker infrastructure setup** 
-   - Thêm MinIO, Trino, Grafana vào docker-compose.yml
-   - Test integration giữa Pulsar ↔ Flink ↔ Iceberg
+1. **AI Pipeline Integration với Pulsar**
+   - Connect `ai/emit/json_emitter.py` với Pulsar producer
+   - Test full flow: video input → AI processing → Pulsar topic
    
-2. **End-to-end pipeline testing**
-   - Test full flow: video input → AI processing → Pulsar → Flink → storage
-   - Validate latency requirements (≤ 3-5s E2E)
-
-3. **Configuration management**
-   - Hoàn thiện .env configuration
-   - Add production-ready configs cho các services
+2. **Flink Jobs Development**
+   - Tạo Flink streaming jobs trong `flink-jobs/`
+   - Implement Pulsar source → processing → MinIO sink
+   
+3. **Iceberg Lakehouse Setup**
+   - Configure Iceberg catalog với MinIO backend
+   - Setup table schemas cho analytics data
 
 ### Medium Priority  
-4. **Monitoring & Alerting setup**
-   - Add Prometheus + Alertmanager configs
-   - Setup Grafana dashboards cho monitoring
+4. **Trino Query Engine**
+   - Add Trino service vào docker-compose
+   - Connect với Iceberg tables for BI queries
    
-5. **Documentation completion**
-   - Update installation/deployment guide
-   - API documentation cho AI modules
+5. **Monitoring Stack**
+   - Add Prometheus + Grafana services
+   - Setup dashboards cho pipeline monitoring
 
-6. **Performance optimization**
-   - GPU support cho YOLOv8
-   - Throughput testing (target: 50-200 msg/s)
+6. **Performance Testing**
+   - Load testing với multiple video streams
+   - Validate latency requirements (≤ 3-5s E2E)
 
 ## Key Paths (Đường dẫn quan trọng)
 - **AI Modules**: `ai/detect/`, `ai/track/`, `ai/ingest/`, `ai/emit/`
-- **Infrastructure**: `infrastructure/flink/`, `infrastructure/pulsar/`
-- **Config**: `configs/.env.example`, `docker-compose.yml`
+- **Infrastructure**: `infrastructure/flink/`, `infrastructure/pulsar/`, `infrastructure/minio/`
+- **Config**: `.env` (credentials), `docker-compose.yml` (services)
 - **Test Data**: `data/videos/`, `yolov8n.pt`
-- **Scripts**: `scripts/make_synth_video.py`
+- **Documentation**: `docs/data-flow-guide.md`, `docs/HANDOFF.md`, `docs/CHANGELOG.md`
 
 ## Latest Checks (Kết quả test gần nhất)
-- **AI Pipeline**: ✅ Individual modules working (detect, track, emit)
-- **Pulsar Setup**: ✅ Configuration complete, cần test integration  
-- **Flink Setup**: ✅ Configuration complete, cần test với Pulsar
-- **Docker Compose**: ⚠️ Partial - thiếu MinIO, Trino, Grafana services
-- **E2E Integration**: ❌ Chưa test - đợi infrastructure hoàn thành
+- **Docker Infrastructure**: ✅ All services running (Pulsar, Flink, MinIO)
+- **Port Configuration**: ✅ Resolved conflicts (Pulsar:8082, Flink:8081, MinIO:9000/9001)
+- **MinIO Setup**: ✅ Credentials configured, healthcheck passing
+- **Pulsar Setup**: ✅ Broker healthy, topics ready for creation
+- **Flink Setup**: ✅ JobManager + TaskManager healthy
+- **E2E Integration**: ⚠️ Infrastructure ready, cần AI pipeline integration
 
 ## Schemas/Contracts (Schema hiện tại)
 - **Detection Output**: NDJSON format (xem `detections_output.ndjson`)
 - **Video Input**: Support MP4, AVI via CV2/GStreamer
-- **Pulsar Schema**: Chưa define - cần implement Avro schema
+- **Pulsar Schema**: Cần define Avro schema cho detection metadata
+- **MinIO Buckets**: `lakehouse/`, `raw-data/`, `processed/`, `models/`
 
 ## Environment (Môi trường)
 - **Python**: 3.12 (venv: `.venv312/`)
-- **Dependencies**: Requirements chưa được define trong requirements.txt
-- **Docker**: docker-compose.yml (partial implementation)
-- **Models**: YOLOv8 nano (`yolov8n.pt`) - 6MB model cho testing
+- **Docker Services**: Pulsar (6650,8082), Flink (8081), MinIO (9000,9001)
+- **Git**: .gitattributes configured for cross-platform compatibility
+- **Line Endings**: LF preserved for .sh, .env, config files
 
 ## Notes
-- Branch `infra/setup` có infrastructure configs mới nhất
-- Main branch stable với basic AI functionality
-- Cần merge về main sau khi hoàn thành infrastructure testing
+- Infrastructure stack hoàn tất và stable
+- Data flow guide available tại `docs/data-flow-guide.md`
+- All services healthy, ready cho AI integration
+- Branch `don` ready for main merge sau integration testing

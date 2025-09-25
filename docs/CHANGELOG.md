@@ -2,6 +2,18 @@
 
 Ghi lại tất cả các công việc đã hoàn thành trong dự án Retail Video Analytics.
 
+## 2025-09-25
+
+### Infrastructure Completion
+- **2025-09-25: Add MinIO service và complete docker-compose stack at infrastructure/minio/ - Setup object storage cho Lakehouse architecture; docker-compose fully functional (completed)**
+- **2025-09-25: Fix port conflicts between Pulsar và Flink at docker-compose.yml - Resolve 8080 port conflict, Pulsar admin now on 8082; commit XXX (completed)**
+- **2025-09-25: Setup MinIO configuration với proper credentials at .env - MinIO healthcheck passing với secure credentials; commit XXX (completed)**
+
+### Documentation & Guides
+- **2025-09-25: Create comprehensive data flow guide at docs/data-flow-guide.md - Complete tutorial cho AI → Pulsar → Flink → MinIO pipeline; commit XXX (completed)**
+- **2025-09-25: Add cross-platform compatibility at .gitattributes - Prevent CRLF/LF issues cho .sh, .env files; commit XXX (completed)**
+- **2025-09-25: Update project status at docs/HANDOFF.md và docs/CHANGELOG.md - Current status và next steps documentation; commit XXX (completed)**
+
 ## 2025-09-24
 
 ### Infrastructure & Setup
@@ -26,5 +38,5 @@ Ghi lại tất cả các công việc đã hoàn thành trong dự án Retail V
 - **2025-09-24: Setup project configuration at configs/.env.example - Environment template (completed)**
 
 ### Current Status
-- **Hoàn thành**: Core AI pipeline (detection, tracking, emission), Infrastructure setup (Pulsar, Flink), Code organization
-- **Đang tiến hành**: Infrastructure completion, Integration testing, Documentation updates
+- **Hoàn thành**: Full infrastructure stack (Pulsar, Flink, MinIO), Core AI pipeline, Documentation suite, Cross-platform compatibility
+- **Đang tiến hành**: AI pipeline integration với Pulsar, Flink jobs development, Iceberg setup
