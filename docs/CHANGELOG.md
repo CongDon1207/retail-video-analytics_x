@@ -4,15 +4,20 @@ Ghi lại tất cả các công việc đã hoàn thành trong dự án Retail V
 
 ## 2025-09-25
 
-### Infrastructure Completion
+### Lakehouse Architecture Completion
+- **2025-09-25: Add Iceberg REST catalog service at docker-compose.yml - Lakehouse table format support với MinIO backend; Iceberg service on port 8181 (completed)**
 - **2025-09-25: Add MinIO service và complete docker-compose stack at infrastructure/minio/ - Setup object storage cho Lakehouse architecture; docker-compose fully functional (completed)**
-- **2025-09-25: Fix port conflicts between Pulsar và Flink at docker-compose.yml - Resolve 8080 port conflict, Pulsar admin now on 8082; commit XXX (completed)**
-- **2025-09-25: Setup MinIO configuration với proper credentials at .env - MinIO healthcheck passing với secure credentials; commit XXX (completed)**
+- **2025-09-25: Fix port conflicts between Pulsar và Flink at docker-compose.yml - Resolve 8080 port conflict, Pulsar admin now on 8082; full 4-service stack healthy (completed)**
+- **2025-09-25: Setup MinIO configuration với proper credentials at .env - MinIO healthcheck passing với secure credentials, warehouse bucket created (completed)**
 
-### Documentation & Guides
-- **2025-09-25: Create comprehensive data flow guide at docs/data-flow-guide.md - Complete tutorial cho AI → Pulsar → Flink → MinIO pipeline; commit XXX (completed)**
-- **2025-09-25: Add cross-platform compatibility at .gitattributes - Prevent CRLF/LF issues cho .sh, .env files; commit XXX (completed)**
-- **2025-09-25: Update project status at docs/HANDOFF.md và docs/CHANGELOG.md - Current status và next steps documentation; commit XXX (completed)**
+### Documentation & Cross-Platform Support
+- **2025-09-25: Create comprehensive data flow guide at docs/data-flow-guide.md - Complete tutorial cho AI → Pulsar → Flink → MinIO pipeline với PowerShell commands (completed)**
+- **2025-09-25: Add cross-platform compatibility at .gitattributes - Prevent CRLF/LF issues cho .sh, .env files; Windows/Linux compatibility (completed)**
+- **2025-09-25: Update project status at docs/HANDOFF.md và docs/CHANGELOG.md - Current status với infrastructure completion, next steps defined (completed)**
+
+### Iceberg Integration Development
+- **2025-09-25: Setup Iceberg configuration at infrastructure/iceberg/ - Table schemas và namespace definitions; catalog config templates (completed)**
+- **2025-09-25: Test Iceberg-MinIO connectivity at lakehouse layer - Namespace creation successful, table creation pending AWS region fix (in progress)**
 
 ## 2025-09-24
 
@@ -38,5 +43,5 @@ Ghi lại tất cả các công việc đã hoàn thành trong dự án Retail V
 - **2025-09-24: Setup project configuration at configs/.env.example - Environment template (completed)**
 
 ### Current Status
-- **Hoàn thành**: Full infrastructure stack (Pulsar, Flink, MinIO), Core AI pipeline, Documentation suite, Cross-platform compatibility
-- **Đang tiến hành**: AI pipeline integration với Pulsar, Flink jobs development, Iceberg setup
+- **Hoàn thành**: Full infrastructure stack (Pulsar + Flink + MinIO + Iceberg REST), Core AI pipeline, Documentation suite, Cross-platform compatibility
+- **Đang tiến hành**: Iceberg lakehouse integration (AWS region config), AI pipeline integration với Pulsar, Flink jobs development

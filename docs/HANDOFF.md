@@ -2,23 +2,24 @@
 
 ## Current Status (Trạng thái hiện tại)
 **Branch**: `don`  
-**Đang làm**: Infrastructure setup hoàn thành, đang test integration và tạo documentation  
-**Lý do**: Infrastructure đã stable, cần hoàn thành AI pipeline integration
+**Đang làm**: Iceberg lakehouse integration với MinIO, debugging table creation issues  
+**Lý do**: Infrastructure stack complete (Pulsar + Flink + MinIO + Iceberg REST), cần fix AWS region config cho Iceberg S3 connectivity
 
 ## TODO & Next Steps (Các bước tiếp theo - ưu tiên)
 
 ### High Priority
-1. **AI Pipeline Integration với Pulsar**
+1. **Iceberg-MinIO Integration Fix**
+   - Fix AWS region configuration trong Iceberg REST service
+   - Complete table creation cho lakehouse layer
+   - Test namespace và table operations
+   
+2. **AI Pipeline Integration với Pulsar**
    - Connect `ai/emit/json_emitter.py` với Pulsar producer
    - Test full flow: video input → AI processing → Pulsar topic
    
-2. **Flink Jobs Development**
+3. **Flink Jobs Development**
    - Tạo Flink streaming jobs trong `flink-jobs/`
-   - Implement Pulsar source → processing → MinIO sink
-   
-3. **Iceberg Lakehouse Setup**
-   - Configure Iceberg catalog với MinIO backend
-   - Setup table schemas cho analytics data
+   - Implement Pulsar source → processing → Iceberg sink
 
 ### Medium Priority  
 4. **Trino Query Engine**
@@ -35,33 +36,38 @@
 
 ## Key Paths (Đường dẫn quan trọng)
 - **AI Modules**: `ai/detect/`, `ai/track/`, `ai/ingest/`, `ai/emit/`
-- **Infrastructure**: `infrastructure/flink/`, `infrastructure/pulsar/`, `infrastructure/minio/`
-- **Config**: `.env` (credentials), `docker-compose.yml` (services)
-- **Test Data**: `data/videos/`, `yolov8n.pt`
+- **Infrastructure**: `infrastructure/flink/`, `infrastructure/pulsar/`, `infrastructure/minio/`, `infrastructure/iceberg/`
+- **Config**: `.env` (credentials), `docker-compose.yml` (4 services), `.gitattributes` (line endings)
+- **Jobs**: `flink-jobs/` (streaming jobs development)
+- **Test Data**: `data/videos/`, `yolov8n.pt`, `detections_output.ndjson`
 - **Documentation**: `docs/data-flow-guide.md`, `docs/HANDOFF.md`, `docs/CHANGELOG.md`
 
 ## Latest Checks (Kết quả test gần nhất)
-- **Docker Infrastructure**: ✅ All services running (Pulsar, Flink, MinIO)
-- **Port Configuration**: ✅ Resolved conflicts (Pulsar:8082, Flink:8081, MinIO:9000/9001)
-- **MinIO Setup**: ✅ Credentials configured, healthcheck passing
-- **Pulsar Setup**: ✅ Broker healthy, topics ready for creation
-- **Flink Setup**: ✅ JobManager + TaskManager healthy
-- **E2E Integration**: ⚠️ Infrastructure ready, cần AI pipeline integration
+- **Docker Infrastructure**: ✅ All services running (Pulsar, Flink, MinIO, Iceberg REST)
+- **Port Configuration**: ✅ Resolved conflicts (Pulsar:8082, Flink:8081, MinIO:9000/9001, Iceberg:8181)
+- **MinIO Setup**: ✅ Credentials configured, warehouse bucket created, healthcheck passing
+- **Pulsar Setup**: ✅ Broker healthy, admin API accessible on port 8082
+- **Flink Setup**: ✅ JobManager + TaskManager healthy, Web UI on port 8081
+- **Iceberg REST**: ⚠️ Service running, namespace created, table creation failing (AWS region issue)
+- **Cross-Platform**: ✅ PowerShell commands documented, .gitattributes configured
 
 ## Schemas/Contracts (Schema hiện tại)
 - **Detection Output**: NDJSON format (xem `detections_output.ndjson`)
 - **Video Input**: Support MP4, AVI via CV2/GStreamer
-- **Pulsar Schema**: Cần define Avro schema cho detection metadata
-- **MinIO Buckets**: `lakehouse/`, `raw-data/`, `processed/`, `models/`
+- **Pulsar Schema**: JSON schema defined (`infrastructure/pulsar/schema/metadata-json-schema.json`)
+- **MinIO Buckets**: `warehouse/` (Iceberg lakehouse), buckets auto-created via scripts
+- **Iceberg Tables**: Bronze layer schemas defined (`infrastructure/iceberg/sql/`)
 
 ## Environment (Môi trường)
-- **Python**: 3.12 (venv: `.venv312/`)
-- **Docker Services**: Pulsar (6650,8082), Flink (8081), MinIO (9000,9001)
+- **Python**: 3.12 (venv: `.venv312/`), packages: ultralytics, opencv-python, deep-sort-realtime
+- **Docker Services**: Pulsar (6650,8082), Flink (8081), MinIO (9000,9001), Iceberg REST (8181)
+- **Docker Compose**: v4 services stack, environment variables via `.env`
 - **Git**: .gitattributes configured for cross-platform compatibility
 - **Line Endings**: LF preserved for .sh, .env, config files
 
 ## Notes
-- Infrastructure stack hoàn tất và stable
-- Data flow guide available tại `docs/data-flow-guide.md`
-- All services healthy, ready cho AI integration
-- Branch `don` ready for main merge sau integration testing
+- Infrastructure stack hoàn tất và stable (4/4 services healthy)
+- Data flow guide available tại `docs/data-flow-guide.md` với PowerShell commands
+- Iceberg lakehouse partially configured, cần fix AWS region cho S3 connectivity
+- Full docker-compose stack deployed, ready cho end-to-end testing
+- Branch `don` có complete infrastructure, ready cho AI pipeline integration

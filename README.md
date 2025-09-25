@@ -50,11 +50,25 @@
 │     ├─ deepsort_tracker.py # Object tracking với DeepSort algorith
 │     └─ __pycache__/     # Python bytecode cache
 ├─ infrastructure/        # Infrastructure configs và deployment
-│  ├─ flink/              # Apache Flink configuration
+│  ├─ flink/              # Apache Flink stream processing
 │  │  └─ conf/            # Flink configuration files
 │  │     ├─ flink-conf.yaml        # Flink cluster configuration
 │  │     └─ log4j-console.properties # Logging configuration
-│  └─ pulsar/             # Apache Pulsar configuration
+│  ├─ iceberg/            # Apache Iceberg lakehouse configs
+│  │  ├─ conf/            # Iceberg catalog configuration
+│  │  │  └─ application.properties # Iceberg REST catalog config
+│  │  └─ sql/             # Iceberg table definitions
+│  │     ├─ 01-create-namespaces.sql # Database namespaces
+│  │     └─ 02-create-bronze-tables.sql # Bronze layer tables
+│  ├─ minio/              # MinIO object storage setup
+│  │  ├─ Dockerfile       # MinIO container build
+│  │  ├─ .env.example     # MinIO environment template
+│  │  ├─ conf/            # MinIO configuration
+│  │  │  └─ minio.env     # MinIO server configuration
+│  │  └─ scripts/         # MinIO utility scripts
+│  │     ├─ entrypoint.sh # MinIO container entrypoint
+│  │     └─ init.sh       # MinIO bucket initialization
+│  └─ pulsar/             # Apache Pulsar message broker
 │     ├─ conf/            # Pulsar configuration files
 │     │  ├─ client.conf   # Pulsar client configuration
 │     │  └─ standalone.conf # Standalone broker configuration
@@ -62,8 +76,9 @@
 │     │  └─ metadata-json-schema.json # JSON schema cho metadata
 │     └─ scripts/         # Pulsar utility scripts
 │        └─ init-topics.sh # Script tạo topics và subscriptions
+├─ flink-jobs/            # Flink streaming jobs (development)
+│  └─ lib/                # Flink job JAR files và dependencies
 ├─ configs/               # Configuration files
-│  └─ .env.example        # Environment variables template
 ├─ data/                  # Sample data và test videos
 │  ├─ synth.avi          # Synthetic test video (generated)
 │  └─ videos/            # Sample surveillance videos
@@ -71,6 +86,7 @@
 │     └─ video.mp4       # Test video sample
 ├─ docs/                  # Documentation và design
 │  ├─ architecture.jpg   # System architecture diagram
+│  ├─ data-flow-guide.md # Complete pipeline tutorial với commands
 │  ├─ guide.md          # User guide và tutorial
 │  ├─ CHANGELOG.md      # Project history log
 │  └─ HANDOFF.md        # Current status và next steps
@@ -79,8 +95,11 @@
 │  └─ __pycache__/       # Python bytecode cache
 ├─ .serena/              # Serena MCP server configuration
 │  └─ project.yml        # Project settings cho Serena
+├─ .venv312/             # Python virtual environment (Python 3.12)
+├─ .env                  # Environment variables (local config)
+├─ .gitattributes        # Git line ending configuration
 ├─ AGENTS.md             # Agent code rules và guidelines
-├─ docker-compose.yml    # Docker services orchestration
+├─ docker-compose.yml    # Docker services orchestration (Pulsar + Flink + MinIO + Iceberg)
 ├─ yolov8n.pt           # Pre-trained YOLOv8 nano model weights
 ├─ detections_output.ndjson # Sample detection outputs (NDJSON format)
 └─ README.md             # Project documentation (this file)
@@ -94,7 +113,13 @@
 * GPU (tùy chọn) cho YOLOv8; CPU vẫn chạy được với model nhỏ
 * Cổng mặc định (có thể đổi trong `.env`):
 
-  * MinIO: `9000/9001`, Trino: `8080`, Pulsar: `6650/8080`, Prometheus: `9090`, Grafana: `3000`, Iceberg REST: `8181`, Airflow Web: `8088`
+  * **Pulsar**: `6650` (broker), `8082` (admin) 
+  * **Flink**: `8081` (JobManager Web UI)
+  * **MinIO**: `9000` (API), `9001` (Console) 
+  * **Iceberg REST**: `8181` (catalog API)
+  * **Trino**: `8080` (query engine) - *chưa deploy*
+  * **Prometheus**: `9090` (metrics) - *chưa deploy*
+  * **Grafana**: `3000` (dashboards) - *chưa deploy*
 
 ---
 

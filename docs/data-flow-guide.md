@@ -1,200 +1,178 @@
-# Hướng dẫn Luồng Dữ liệu - Retail Video Analytics
+﻿# Huong Dan Luong Du Lieu - Pulsar -> Flink -> MinIO
 
-> **Mục đích**: Hướng dẫn chi tiết cách chạy và kiểm tra luồng dữ liệu từ AI detection → Pulsar → Flink → MinIO
+> Muc dich: huong dan tung buoc chay luong du lieu tu Pulsar toi Flink va day ket qua vao MinIO su dung cac lenh Git Bash co san trong repo.
 
-## 🚀 Khởi động Stack
+## 0. Yeu cau truoc khi bat dau
+- Docker 24 tro len va Docker Compose V2 (da bao gom trong Docker Desktop).
+- Git Bash (Windows) hoac bat ky shell tuong thich POSIX.
+- File `.env` da duoc tao tu `infrastructure/minio/.env.example` va cap nhat thong tin truy cap MinIO.
+- Thu muc `flink-jobs/lib/` chua job jar sau khi build (se duoc mount vao Flink JobManager/TaskManager).
 
-### Bước 1: Khởi động Infrastructure
+## 1. Khoi dong stack co so
+
+### 1.1 Sao chep bien moi truong (lan dau tien)
 ```bash
-# Đảm bảo có file .env với credentials hợp lệ
+echo "Sao chep mau .env (chi thuc hien neu chua co)"
 cp infrastructure/minio/.env.example .env
-
-# Khởi động tất cả services
-docker compose up -d
-
-# Kiểm tra trạng thái
-docker compose ps
 ```
 
-**Expected output:**
-- Pulsar: `Up (healthy)` - ports 6650, 8082
-- Flink JobManager: `Up (healthy)` - port 8081  
-- Flink TaskManager: `Up` - internal
-- MinIO: `Up (healthy)` - ports 9000, 9001
-
-### Bước 2: Khởi tạo MinIO Buckets
+### 1.2 Khoi dong cac dich vu
 ```bash
-# Chạy script khởi tạo buckets (optional - tự động tạo khi cần)
-docker exec minio bash /data/scripts/init.sh 2>/dev/null || echo "Script not found, buckets will be auto-created"
+docker compose pull
+TIMEOUT=70s docker compose up -d
+TIMEOUT=30s docker compose ps
 ```
 
-## 📊 Luồng Dữ liệu Chính
+**Ky vong**: `pulsar-broker` va `minio` o trang thai `Up (healthy)`, `pulsar-init` se ket thuc sau khi tao topic, Flink JobManager/TaskManager o trang thai `Up`.
 
-### Phase 1: AI Detection → Pulsar
-```
-Video Input (OpenCV/GStreamer) 
-    ↓ [ai/ingest]
-YOLOv8 Object Detection 
-    ↓ [ai/detect]  
-DeepSort Tracking
-    ↓ [ai/track]
-JSON Metadata Emit
-    ↓ [ai/emit]
-Pulsar Topic: detection-results
-```
-
-**Cách test Phase 1:**
+### 1.3 Kiem tra suc khoe nhanh
 ```bash
-# Run AI detection pipeline (giả định có video test)
-cd ai/ingest
-python -m . --source ../../data/synth.avi --output-topic detection-results
-
-# Kiểm tra Pulsar topic đã nhận dữ liệu
-docker exec pulsar-broker /pulsar/bin/pulsar-admin topics stats persistent://public/default/detection-results
+docker compose logs --tail=20 pulsar-init
+docker compose logs --tail=20 pulsar-broker
+docker compose logs --tail=20 flink-jobmanager
 ```
+Neu `pulsar-init` khong chay tu dong, su dung `docker compose run --rm pulsar-init` de kich hoat script tao topic va schema.
 
-### Phase 2: Pulsar → Flink Processing  
-```
-Pulsar Topic: detection-results
-    ↓ [Flink Source Connector]
-Stream Processing (CEP, Windowing)
-    ↓ [Flink Transformation]
-Aggregated Results
-    ↓ [Flink Sink Connector]
-Pulsar Topic: processed-analytics
-```
+## 2. Thiet lap Pulsar va nap du lieu mau
 
-**Cách test Phase 2:**
+### 2.1 Xac nhan tenant/namespace/topic
 ```bash
-# Submit Flink job (cần có job JAR)
-docker exec flink-jobmanager /opt/flink/bin/flink run \
-  /opt/flink/usrlib/video-analytics-job.jar \
-  --input-topic detection-results \
-  --output-topic processed-analytics
-
-# Kiểm tra job đang chạy
-curl http://localhost:8081/jobs
+docker exec pulsar-broker /pulsar/bin/pulsar-admin tenants list
+docker exec pulsar-broker /pulsar/bin/pulsar-admin namespaces list retail
+docker exec pulsar-broker /pulsar/bin/pulsar-admin topics list retail/metadata
 ```
+Chu y topic mac dinh: `persistent://retail/metadata/events` (4 partition, JSON schema).
 
-### Phase 3: Flink → MinIO Lakehouse
-```
-Pulsar Topic: processed-analytics  
-    ↓ [Flink S3 Sink]
-MinIO Bucket: lakehouse/
-    ↓ [Iceberg Table Format]
-Parquet Files + Metadata
-    ↓ [Trino Query Engine - future]
-BI Dashboard
-```
-
-**Cách test Phase 3:**
+### 2.2 Nap file NDJSON lam stream mau
 ```bash
-# Kiểm tra MinIO buckets đã được tạo
-curl -u minioadmin:minioadmin123 http://localhost:9000/
+echo "Copy file NDJSON vao container"
+docker cp detections_output.ndjson pulsar-broker:/tmp/detections_output.ndjson
 
-# Access MinIO Console để xem dữ liệu
-echo "Open: http://localhost:9001 (user: minioadmin, pass: minioadmin123)"
+echo "Day tung dong vao topic (1 dong = 1 message)"
+docker exec pulsar-broker bash -lc '
+  set -euo pipefail
+  while IFS= read -r line; do
+    if [[ -n "${line}" ]]; then
+      /pulsar/bin/pulsar-client produce \
+        -m "${line}" \
+        persistent://retail/metadata/events \
+        >/dev/null
+    fi
+  done < /tmp/detections_output.ndjson
+  echo "Pushed $(wc -l < /tmp/detections_output.ndjson) messages"
+'
+```
 
-# List objects trong bucket lakehouse
+### 2.3 Giam sat topic
+a) Doc nhanh 5 message vua day:
+```bash
+docker exec pulsar-broker /pulsar/bin/pulsar-client consume \
+  persistent://retail/metadata/events \
+  -s verify-sub \
+  -n 5
+```
+
+b) Theo doi thong ke topic:
+```bash
+docker exec pulsar-broker /pulsar/bin/pulsar-admin topics stats \
+  persistent://retail/metadata/events | head -n 20
+```
+Lenh `head` duoc goi ben trong container Linux nen tuong thich.
+
+## 3. Chuan bi Flink xu ly stream
+
+### 3.1 Dat job jar vao mountpoint
+- Build Flink job (VD: su dung Maven hoac Gradle) va tao file jar, vi du: `retail-stream-job-0.1.0.jar`.
+- Copy jar vao `flink-jobs/lib/`. Docker Compose da mount thu muc nay vao `/opt/flink/usrlib`.
+
+```bash
+ls flink-jobs/lib
+docker exec flink-jobmanager ls /opt/flink/usrlib
+```
+Dam bao jar hien dien o ca hai lenh tren.
+
+### 3.2 Cau hinh bien moi truong ho tro (chon lua)
+```bash
+export PULSAR_SERVICE_URL="pulsar://pulsar-broker:6650"
+export PULSAR_ADMIN_URL="http://pulsar-broker:8080"
+export MINIO_ENDPOINT="http://minio:9000"
+export MINIO_ACCESS_KEY="$(grep MINIO_ROOT_USER .env | cut -d'=' -f2)"
+export MINIO_SECRET_KEY="$(grep MINIO_ROOT_PASSWORD .env | cut -d'=' -f2)"
+```
+
+### 3.3 Submit job Flink (thay doi ten jar/option theo project)
+```bash
+JOB_JAR="retail-stream-job-0.1.0.jar"
+
+docker exec flink-jobmanager flink run \
+  /opt/flink/usrlib/${JOB_JAR} \
+  --source-topic persistent://retail/metadata/events \
+  --pulsar-service-url ${PULSAR_SERVICE_URL:-pulsar://pulsar-broker:6650} \
+  --pulsar-admin-url ${PULSAR_ADMIN_URL:-http://pulsar-broker:8080} \
+  --minio-endpoint ${MINIO_ENDPOINT:-http://minio:9000} \
+  --minio-access-key ${MINIO_ACCESS_KEY:-minioadmin} \
+  --minio-secret-key ${MINIO_SECRET_KEY:-minioadmin123} \
+  --sink-table detections_iceberg
+```
+Cap nhat ten doi so phu hop voi job thuc te. Neu job ho tro Table/SQL client, co the su dung `docker exec -it flink-jobmanager ./bin/sql-client.sh` thay cho `flink run`.
+
+### 3.4 Theo doi job
+```bash
+docker exec flink-jobmanager flink list
+```
+Mo trinh duyet toi `http://localhost:8081` de xem trang thai job, watermarks, metrics.
+
+## 4. Khoi tao MinIO va xac thuc output
+
+### 4.1 Thiet lap alias mc
+```bash
+docker exec minio mc alias set local \
+  http://localhost:9000 \
+  "${MINIO_ROOT_USER:-minioadmin}" \
+  "${MINIO_ROOT_PASSWORD:-minioadmin123}"
+```
+
+### 4.2 Chay script khoi tao bucket
+```bash
+docker cp infrastructure/minio/scripts/init.sh minio:/tmp/minio-init.sh
+TIMEOUT=70s docker exec minio bash /tmp/minio-init.sh
+```
+Script tao cac bucket `lakehouse/`, `raw-data/`, `processed/`, `models/` neu chua ton tai.
+
+### 4.3 Kiem tra ket qua ghi tu Flink
+```bash
+docker exec minio mc ls local/
 docker exec minio mc ls local/lakehouse/
 ```
+Neu job Flink ghi theo duong `s3a://lakehouse/<subpath>/`, ban se thay parquet/metadata xuat hien tai day.
 
-## 🔍 Monitoring & Debugging
+### 4.4 Truy cap giao dien MinIO
+- URL: `http://localhost:9001`
+- Username: gia tri `MINIO_ROOT_USER`
+- Password: gia tri `MINIO_ROOT_PASSWORD`
 
-### Kiểm tra Logs
+## 5. Giam sat, don dep, ghi chu
+
+### 5.1 Giam sat log
 ```bash
-# Xem logs tất cả services
-docker compose logs -f
-
-# Logs từng service riêng
-docker compose logs pulsar-broker -f
-docker compose logs flink-jobmanager -f  
-docker compose logs minio -f
+TIMEOUT=75s docker compose logs -f pulsar-broker
+TIMEOUT=75s docker compose logs -f flink-jobmanager
+TIMEOUT=75s docker compose logs -f minio
 ```
+Nhan `Ctrl+C` de thoat khoi streaming log truoc khi timeout tu dong.
 
-### Health Checks
+### 5.2 Don dep stack (sau khi hoan thanh)
 ```bash
-# Pulsar broker health
-curl http://localhost:8082/admin/v2/brokers/health
-
-# Flink cluster overview  
-curl http://localhost:8081/overview
-
-# MinIO health
-curl http://localhost:9000/minio/health/live
+docker compose down
+# Xoa volume neu muon lam moi hoan toan
+# docker compose down -v
 ```
 
-### Topic Management
-```bash
-# Tạo topic Pulsar thủ công
-docker exec pulsar-broker /pulsar/bin/pulsar-admin topics create persistent://public/default/detection-results
-
-# List topics
-docker exec pulsar-broker /pulsar/bin/pulsar-admin topics list public/default
-
-# Consume messages từ topic
-docker exec pulsar-broker /pulsar/bin/pulsar-client consume detection-results -s test-sub -n 10
-```
-
-## 🎯 Performance Tuning
-
-### Pulsar Configuration
-- Memory: 512MB-1GB (adjust `PULSAR_MEM` in docker-compose.yml)
-- Retention: configured in `infrastructure/pulsar/conf/standalone.conf`
-
-### Flink Configuration  
-- Slots: 4 per TaskManager (adjust `taskmanager.numberOfTaskSlots`)
-- Parallelism: 2 default (adjust `parallelism.default`)
-
-### MinIO Configuration
-- Console: http://localhost:9001
-- Storage: persistent volume `minio_data`
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-**1. Port conflicts**
-```bash
-# Check ports in use
-netstat -tulpn | grep :8080
-# Solution: Change ports in docker-compose.yml
-```
-
-**2. MinIO credentials invalid**  
-```bash
-# Error: "MINIO_ROOT_PASSWORD length at least 8 characters"
-# Solution: Update .env with longer password
-```
-
-**3. Flink job not starting**
-```bash  
-# Check Flink cluster connection
-curl http://localhost:8081/taskmanagers
-# Solution: Verify jobmanager/taskmanager communication
-```
-
-**4. Pulsar topics not creating**
-```bash
-# Manual topic creation
-docker exec pulsar-broker /pulsar/bin/pulsar-admin topics create persistent://public/default/your-topic
-```
-
-## 📈 Next Steps
-
-1. **AI Integration**: Connect `ai/ingest` with Pulsar producer
-2. **Flink Jobs**: Develop stream processing jobs in `flink-jobs/`  
-3. **Iceberg Setup**: Configure Iceberg catalog with MinIO backend
-4. **Trino Integration**: Add Trino for lakehouse queries
-5. **Monitoring**: Add Prometheus + Grafana stack
-
-## 🔗 Useful URLs
-
-- **Flink Dashboard**: http://localhost:8081
-- **Pulsar Admin**: http://localhost:8082  
-- **MinIO Console**: http://localhost:9001
-- **Pulsar Manager** (if added): http://localhost:9527
+### 5.3 Meo khac phuc su co nhanh
+- Neu Flink khong thay jar: kiem tra quyen truy cap folder `flink-jobs/lib/`.
+- Neu Pulsar thong bao schema conflict: xoa schema cu bang `pulsar-admin schemas delete persistent://retail/metadata/events` roi chay lai `pulsar-init`.
+- Neu MinIO tu choi truy cap: dam bao mat khau trong `.env` dai tu 8 ky tu tro len.
 
 ---
 
-> **Lưu ý**: Các AI components trong `ai/` chưa được tích hợp hoàn toàn với infrastructure. Cần thêm Pulsar client vào `ai/emit/json_emitter.py` để hoàn thành luồng dữ liệu end-to-end.
+> Ghi chu: Tai lieu nay tap trung vao luong Pulsar -> Flink -> MinIO. Luong AI Ingest/Detect/Track se duoc dieu khien tu cac module trong thu muc `ai/` va co the chay doc lap de sinh NDJSON truoc khi day vao Pulsar.
