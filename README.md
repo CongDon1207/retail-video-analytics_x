@@ -35,28 +35,55 @@
 .
 ├─ ai/                    # AI modules cho video analytics
 │  ├─ detect/             # YOLOv8 detector implementation
+│  │  ├─ yolo_detector.py # YOLOv8 detection core logic
+│  │  └─ __pycache__/     # Python bytecode cache
 │  ├─ emit/               # JSON emitter cho kết quả detection
+│  │  ├─ json_emitter.py  # Xuất detection results dưới dạng JSON
+│  │  └─ __pycache__/     # Python bytecode cache
 │  ├─ ingest/             # Video source handling (CV2, GStreamer)
+│  │  ├─ __init__.py      # Package initialization
+│  │  ├─ __main__.py      # Main entry point cho video ingestion
+│  │  ├─ cv_source.py     # OpenCV video source handler
+│  │  ├─ gst_source.py    # GStreamer video source handler
+│  │  └─ __pycache__/     # Python bytecode cache
 │  └─ track/              # DeepSort tracker implementation
+│     ├─ deepsort_tracker.py # Object tracking với DeepSort algorith
+│     └─ __pycache__/     # Python bytecode cache
 ├─ infrastructure/        # Infrastructure configs và deployment
 │  ├─ flink/              # Apache Flink configuration
+│  │  └─ conf/            # Flink configuration files
+│  │     ├─ flink-conf.yaml        # Flink cluster configuration
+│  │     └─ log4j-console.properties # Logging configuration
 │  └─ pulsar/             # Apache Pulsar configuration
+│     ├─ conf/            # Pulsar configuration files
+│     │  ├─ client.conf   # Pulsar client configuration
+│     │  └─ standalone.conf # Standalone broker configuration
+│     ├─ schema/          # Pulsar schema definitions
+│     │  └─ metadata-json-schema.json # JSON schema cho metadata
+│     └─ scripts/         # Pulsar utility scripts
+│        └─ init-topics.sh # Script tạo topics và subscriptions
 ├─ configs/               # Configuration files
 │  └─ .env.example        # Environment variables template
 ├─ data/                  # Sample data và test videos
-│  ├─ synth.avi          # Synthetic test video
+│  ├─ synth.avi          # Synthetic test video (generated)
 │  └─ videos/            # Sample surveillance videos
+│     ├─ Midtown corner store surveillance video 11-25-18.mp4 # Real surveillance footage
+│     └─ video.mp4       # Test video sample
 ├─ docs/                  # Documentation và design
 │  ├─ architecture.jpg   # System architecture diagram
-│  ├─ guide.md          # User guide
+│  ├─ guide.md          # User guide và tutorial
 │  ├─ CHANGELOG.md      # Project history log
 │  └─ HANDOFF.md        # Current status và next steps
 ├─ scripts/              # Utility scripts
-│  └─ make_synth_video.py # Generate synthetic test data
+│  ├─ make_synth_video.py # Generate synthetic test data
+│  └─ __pycache__/       # Python bytecode cache
+├─ .serena/              # Serena MCP server configuration
+│  └─ project.yml        # Project settings cho Serena
+├─ AGENTS.md             # Agent code rules và guidelines
 ├─ docker-compose.yml    # Docker services orchestration
-├─ yolov8n.pt           # Pre-trained YOLOv8 nano model
-├─ detections_output.ndjson # Sample detection outputs
-└─ README.md
+├─ yolov8n.pt           # Pre-trained YOLOv8 nano model weights
+├─ detections_output.ndjson # Sample detection outputs (NDJSON format)
+└─ README.md             # Project documentation (this file)
 ```
 
 ---

@@ -5,7 +5,7 @@ services:
     command: ["/bin/bash", "-c", "bin/pulsar standalone"]
     ports:
       - "6650:6650"
-      - "8080:8080"
+      - "8082:8080"
     volumes:
       - ./infrastructure/pulsar/conf/standalone.conf:/pulsar/conf/standalone.conf
       - ./infrastructure/pulsar/conf/client.conf:/pulsar/conf/client.conf
@@ -82,10 +82,35 @@ services:
     networks:
       - retail-net
 
+  minio:
+    build: ./infrastructure/minio
+    container_name: minio
+    ports:
+      - "9000:9000"   # MinIO API
+      - "9001:9001"   # MinIO Console
+    environment:
+      # Provide these via .env file or CI secrets for production
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - retail-net
+
 volumes:
   flink_state:
     driver: local
   pulsar_data:
+    driver: local
+  minio_data:
     driver: local
 
 networks:
