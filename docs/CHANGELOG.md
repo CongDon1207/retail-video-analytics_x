@@ -2,6 +2,12 @@
 
 Ghi lại tất cả các công việc đã hoàn thành trong dự án Retail Video Analytics.
 
+## 2025-09-26
+
+### Pulsar Integration Enablement
+- **2025-09-26: Add Pulsar metadata producer module tại ai/emit/pulsar_producer.py & scripts/demo_send_to_pulsar.py - Cho phép gửi metadata detection vào topic events phục vụ test nhanh (completed)**
+- **2025-09-26: Add Docker workflow cho producer tại infrastructure/pulsar/producer.Dockerfile - Chạy producer không cần môi trường Python local (completed)**
+
 ## 2025-09-25
 
 ### Lakehouse Architecture Completion

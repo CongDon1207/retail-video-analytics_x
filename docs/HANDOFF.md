@@ -4,6 +4,7 @@
 **Branch**: `don`  
 **Đang làm**: Iceberg lakehouse integration với MinIO, debugging table creation issues  
 **Lý do**: Infrastructure stack complete (Pulsar + Flink + MinIO + Iceberg REST), cần fix AWS region config cho Iceberg S3 connectivity
+**Mới cập nhật**: Pulsar metadata producer & demo script khả dụng cho thử nghiệm end-to-end ban đầu
 
 ## TODO & Next Steps (Các bước tiếp theo - ưu tiên)
 
@@ -14,7 +15,8 @@
    - Test namespace và table operations
    
 2. **AI Pipeline Integration với Pulsar**
-   - Connect `ai/emit/json_emitter.py` với Pulsar producer
+   - Pulsar producer Python (`ai/emit/pulsar_producer.py`) + demo script (`scripts/demo_send_to_pulsar.py`) sẵn sàng thử nghiệm
+   - Connect `ai/emit/json_emitter.py` với Pulsar producer trong pipeline chính
    - Test full flow: video input → AI processing → Pulsar topic
    
 3. **Flink Jobs Development**
@@ -50,6 +52,7 @@
 - **Flink Setup**: ✅ JobManager + TaskManager healthy, Web UI on port 8081
 - **Iceberg REST**: ⚠️ Service running, namespace created, table creation failing (AWS region issue)
 - **Cross-Platform**: ✅ PowerShell commands documented, .gitattributes configured
+- **Pulsar Producer Demo**: ✅ Python & Docker workflow gửi metadata vào topic persistent://retail/metadata/events
 
 ## Schemas/Contracts (Schema hiện tại)
 - **Detection Output**: NDJSON format (xem `detections_output.ndjson`)
@@ -71,3 +74,4 @@
 - Iceberg lakehouse partially configured, cần fix AWS region cho S3 connectivity
 - Full docker-compose stack deployed, ready cho end-to-end testing
 - Branch `don` có complete infrastructure, ready cho AI pipeline integration
+- Pulsar demo producer sẵn sàng (`scripts/demo_send_to_pulsar.py`, `infrastructure/pulsar/producer.Dockerfile`) hỗ trợ kiểm thử nhanh

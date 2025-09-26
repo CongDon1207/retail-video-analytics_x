@@ -28,26 +28,21 @@ class JsonEmitter:
             print(f"[WARN] Không mở được {self.out_path}: {exc}; ghi ra stdout")
             self._handle = sys.stdout
 
-    def emit_detection(
-        self,
+    @staticmethod
+    def build_frame_record(
         *,
-        schema_version: str,     # Version của JSON schema
-        pipeline_run_id: str,   # ID của pipeline run
-        source: Dict[str, str], # Metadata source (store_id, camera_id, etc.)
-        frame_index: int,       # Số thứ tự frame
-        capture_ts: str,        # Timestamp capture (ISO format)
-        image_size: Tuple[int, int],  # (width, height) của frame
-        detections: Iterable[DetectionDict],  # List detections trong frame
-    ) -> None:
-        """
-        Xuất detection data của 1 frame dạng NDJSON
-        """
-        if not self._handle:
-            return
-
+        schema_version: str,
+        pipeline_run_id: str,
+        source: Dict[str, str],
+        frame_index: int,
+        capture_ts: str,
+        image_size: Tuple[int, int],
+        detections: Iterable[DetectionDict],
+    ) -> Dict[str, Any]:
+        """Tạo dict JSON chuẩn hóa cho metadata của một frame."""
         width, height = image_size
         frame_payload = []
-        
+
         # Process từng detection trong frame
         for idx, det in enumerate(detections):
             x1, y1, x2, y2 = det.get("bbox", (0, 0, 0, 0))
@@ -80,7 +75,7 @@ class JsonEmitter:
             )
 
         # Tạo record JSON cho frame
-        record = {
+        return {
             "schema_version": schema_version,
             "pipeline_run_id": pipeline_run_id,
             "source": source,
@@ -89,6 +84,33 @@ class JsonEmitter:
             "image_size": {"width": width, "height": height},
             "detections": frame_payload,
         }
+
+    def emit_detection(
+        self,
+        *,
+        schema_version: str,     # Version của JSON schema
+        pipeline_run_id: str,   # ID của pipeline run
+        source: Dict[str, str], # Metadata source (store_id, camera_id, etc.)
+        frame_index: int,       # Số thứ tự frame
+        capture_ts: str,        # Timestamp capture (ISO format)
+        image_size: Tuple[int, int],  # (width, height) của frame
+        detections: Iterable[DetectionDict],  # List detections trong frame
+    ) -> None:
+        """
+        Xuất detection data của 1 frame dạng NDJSON
+        """
+        if not self._handle:
+            return
+
+        record = self.build_frame_record(
+            schema_version=schema_version,
+            pipeline_run_id=pipeline_run_id,
+            source=source,
+            frame_index=frame_index,
+            capture_ts=capture_ts,
+            image_size=image_size,
+            detections=detections,
+        )
 
         # Ghi NDJSON (mỗi record 1 dòng)
         try:

@@ -1,4 +1,4 @@
-# Retail Video Analytics (Lakehouse, Realtime)
+﻿# Retail Video Analytics (Lakehouse, Realtime)
 
 > Realtime pipeline thu thập & xử lý **metadata video** cho chuỗi bán lẻ.
 > Stack: **GStreamer + YOLOv8 + DeepSort → Pulsar → Flink → Iceberg (REST Catalog) on MinIO → Trino → Grafana**
@@ -35,74 +35,28 @@
 .
 ├─ ai/                    # AI modules cho video analytics
 │  ├─ detect/             # YOLOv8 detector implementation
-│  │  ├─ yolo_detector.py # YOLOv8 detection core logic
-│  │  └─ __pycache__/     # Python bytecode cache
 │  ├─ emit/               # JSON emitter cho kết quả detection
-│  │  ├─ json_emitter.py  # Xuất detection results dưới dạng JSON
-│  │  └─ __pycache__/     # Python bytecode cache
 │  ├─ ingest/             # Video source handling (CV2, GStreamer)
-│  │  ├─ __init__.py      # Package initialization
-│  │  ├─ __main__.py      # Main entry point cho video ingestion
-│  │  ├─ cv_source.py     # OpenCV video source handler
-│  │  ├─ gst_source.py    # GStreamer video source handler
-│  │  └─ __pycache__/     # Python bytecode cache
 │  └─ track/              # DeepSort tracker implementation
-│     ├─ deepsort_tracker.py # Object tracking với DeepSort algorith
-│     └─ __pycache__/     # Python bytecode cache
 ├─ infrastructure/        # Infrastructure configs và deployment
-│  ├─ flink/              # Apache Flink stream processing
-│  │  └─ conf/            # Flink configuration files
-│  │     ├─ flink-conf.yaml        # Flink cluster configuration
-│  │     └─ log4j-console.properties # Logging configuration
-│  ├─ iceberg/            # Apache Iceberg lakehouse configs
-│  │  ├─ conf/            # Iceberg catalog configuration
-│  │  │  └─ application.properties # Iceberg REST catalog config
-│  │  └─ sql/             # Iceberg table definitions
-│  │     ├─ 01-create-namespaces.sql # Database namespaces
-│  │     └─ 02-create-bronze-tables.sql # Bronze layer tables
-│  ├─ minio/              # MinIO object storage setup
-│  │  ├─ Dockerfile       # MinIO container build
-│  │  ├─ .env.example     # MinIO environment template
-│  │  ├─ conf/            # MinIO configuration
-│  │  │  └─ minio.env     # MinIO server configuration
-│  │  └─ scripts/         # MinIO utility scripts
-│  │     ├─ entrypoint.sh # MinIO container entrypoint
-│  │     └─ init.sh       # MinIO bucket initialization
-│  └─ pulsar/             # Apache Pulsar message broker
-│     ├─ conf/            # Pulsar configuration files
-│     │  ├─ client.conf   # Pulsar client configuration
-│     │  └─ standalone.conf # Standalone broker configuration
-│     ├─ schema/          # Pulsar schema definitions
-│     │  └─ metadata-json-schema.json # JSON schema cho metadata
-│     └─ scripts/         # Pulsar utility scripts
-│        └─ init-topics.sh # Script tạo topics và subscriptions
-├─ flink-jobs/            # Flink streaming jobs (development)
-│  └─ lib/                # Flink job JAR files và dependencies
+│  ├─ flink/              # Apache Flink configuration
+│  └─ pulsar/             # Apache Pulsar configuration
 ├─ configs/               # Configuration files
+│  └─ .env.example        # Environment variables template
 ├─ data/                  # Sample data và test videos
-│  ├─ synth.avi          # Synthetic test video (generated)
+│  ├─ synth.avi          # Synthetic test video
 │  └─ videos/            # Sample surveillance videos
-│     ├─ Midtown corner store surveillance video 11-25-18.mp4 # Real surveillance footage
-│     └─ video.mp4       # Test video sample
 ├─ docs/                  # Documentation và design
 │  ├─ architecture.jpg   # System architecture diagram
-│  ├─ data-flow-guide.md # Complete pipeline tutorial với commands
-│  ├─ guide.md          # User guide và tutorial
+│  ├─ guide.md          # User guide
 │  ├─ CHANGELOG.md      # Project history log
 │  └─ HANDOFF.md        # Current status và next steps
 ├─ scripts/              # Utility scripts
-│  ├─ make_synth_video.py # Generate synthetic test data
-│  └─ __pycache__/       # Python bytecode cache
-├─ .serena/              # Serena MCP server configuration
-│  └─ project.yml        # Project settings cho Serena
-├─ .venv312/             # Python virtual environment (Python 3.12)
-├─ .env                  # Environment variables (local config)
-├─ .gitattributes        # Git line ending configuration
-├─ AGENTS.md             # Agent code rules và guidelines
-├─ docker-compose.yml    # Docker services orchestration (Pulsar + Flink + MinIO + Iceberg)
-├─ yolov8n.pt           # Pre-trained YOLOv8 nano model weights
-├─ detections_output.ndjson # Sample detection outputs (NDJSON format)
-└─ README.md             # Project documentation (this file)
+│  └─ make_synth_video.py # Generate synthetic test data
+├─ docker-compose.yml    # Docker services orchestration
+├─ yolov8n.pt           # Pre-trained YOLOv8 nano model
+├─ detections_output.ndjson # Sample detection outputs
+└─ README.md
 ```
 
 ---
@@ -113,13 +67,49 @@
 * GPU (tùy chọn) cho YOLOv8; CPU vẫn chạy được với model nhỏ
 * Cổng mặc định (có thể đổi trong `.env`):
 
-  * **Pulsar**: `6650` (broker), `8082` (admin) 
-  * **Flink**: `8081` (JobManager Web UI)
-  * **MinIO**: `9000` (API), `9001` (Console) 
-  * **Iceberg REST**: `8181` (catalog API)
-  * **Trino**: `8080` (query engine) - *chưa deploy*
-  * **Prometheus**: `9090` (metrics) - *chưa deploy*
-  * **Grafana**: `3000` (dashboards) - *chưa deploy*
+  * MinIO: `9000/9001`, Trino: `8080`, Pulsar: `6650/8080`, Prometheus: `9090`, Grafana: `3000`, Iceberg REST: `8181`, Airflow Web: `8088`
+
+## 📦 Pulsar Metadata Producer (Demo)
+
+1. **Chuẩn bị môi trường Python** (khuyến nghị dùng venv):
+   ```bash
+   python -m venv .venv312
+   # Linux/Mac
+   source .venv312/bin/activate
+   # Windows PowerShell / Git Bash
+   .venv312\Scripts\activate
+   pip install --upgrade pip
+   pip install pulsar-client==3.5.0
+   ```
+2. **Khai báo biến môi trường** để Python thấy module `ai` và in Unicode đúng:
+   ```bash
+   export PYTHONPATH=.
+   export PYTHONIOENCODING=utf-8
+   # PowerShell
+   $env:PYTHONPATH='.'; $env:PYTHONIOENCODING='utf-8'
+   ```
+3. **Khởi động stack hạ tầng** theo `docs/data-flow-guide.md` (ví dụ `docker compose up -d`).
+4. **Kiểm thử nhanh (không gửi message)** — có thể chạy ngay cả khi Pulsar chưa bật:
+   ```bash
+   python scripts/demo_send_to_pulsar.py --dry-run --limit 3
+   ```
+   Lệnh sẽ đọc NDJSON và in thông tin từng frame mà không tạo connection tới broker.
+5. **Gửi dữ liệu thật vào Pulsar** (broker đã chạy và schema đã khởi tạo):
+   ```bash
+   python scripts/demo_send_to_pulsar.py --ndjson detections_output.ndjson \
+     --service-url pulsar://localhost:6650 \
+     --topic persistent://retail/metadata/events
+   ```
+   Có thể bỏ các tham số nếu dùng cấu hình mặc định trong repo.
+6. **Chạy producer bằng Docker** (không cần cài Python local):
+   ```bash
+   docker build -f infrastructure/pulsar/producer.Dockerfile -t retail/pulsar-producer .
+   docker run --rm --network=retail-video-analytics_retail-net \
+     retail/pulsar-producer \
+     --service-url pulsar://pulsar-broker:6650 \
+     --topic persistent://retail/metadata/events
+   ```
+   Nếu đổi tên thư mục project, thay `retail-video-analytics` trong tên network bằng tên mới của bạn.
 
 ---
 
@@ -133,4 +123,3 @@
 ## 👥 Contributors
 - [Nguyễn Tấn Hùng](https://github.com/hungfnguyen)
 - [Nguyễn Công Đôn](https://github.com/CongDon1207)
-
