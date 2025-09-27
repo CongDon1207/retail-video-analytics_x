@@ -43,3 +43,4 @@ coverage.xml
 .coverage*
 
 .serena/
+detections_output.ndjson
