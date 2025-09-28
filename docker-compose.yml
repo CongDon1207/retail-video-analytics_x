@@ -5,7 +5,7 @@ services:
     command: ["/bin/bash", "-c", "bin/pulsar standalone"]
     ports:
       - "6650:6650"
-      - "8080:8080"
+      - "8082:8080"
     volumes:
       - ./infrastructure/pulsar/conf/standalone.conf:/pulsar/conf/standalone.conf
       - ./infrastructure/pulsar/conf/client.conf:/pulsar/conf/client.conf
@@ -40,17 +40,23 @@ services:
       - retail-net
 
   flink-jobmanager:
-    image: flink:1.18.1-scala_2.12-java11
+    build:
+      context: .
+      dockerfile: infrastructure/flink/Dockerfile
+    image: retail/flink:1.18-iceberg-pulsar
     container_name: flink-jobmanager
     command: jobmanager
     ports:
       - "8081:8081"
     volumes:
       - ./infrastructure/flink/conf:/opt/flink/conf
-      - ./flink-jobs/lib:/opt/flink/usrlib
       - flink_state:/opt/flink/state
     environment:
+      AWS_REGION: ${S3_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
+      LOG4J_CONFIGURATION_FILE: /opt/flink/conf/log4j2.properties
       FLINK_PROPERTIES: |
         jobmanager.rpc.address=flink-jobmanager
         taskmanager.numberOfTaskSlots=4
@@ -62,23 +68,95 @@ services:
       retries: 30
     networks:
       - retail-net
-
   flink-taskmanager:
-    image: flink:1.18.1-scala_2.12-java11
+    image: retail/flink:1.18-iceberg-pulsar
     container_name: flink-taskmanager
     command: taskmanager
     depends_on:
       - flink-jobmanager
     volumes:
       - ./infrastructure/flink/conf:/opt/flink/conf
-      - ./flink-jobs/lib:/opt/flink/usrlib
       - flink_state:/opt/flink/state
     environment:
+      AWS_REGION: ${S3_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
+      LOG4J_CONFIGURATION_FILE: /opt/flink/conf/log4j2.properties
       FLINK_PROPERTIES: |
         jobmanager.rpc.address=flink-jobmanager
         taskmanager.numberOfTaskSlots=4
         parallelism.default=2
+    networks:
+      - retail-net
+  minio:
+    build: ./infrastructure/minio
+    container_name: minio
+    ports:
+      - "9000:9000"   # MinIO API
+      - "9001:9001"   # MinIO Console
+    environment:
+      # Provide these via .env file or CI secrets for production
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - retail-net
+
+
+  minio-init:
+    image: minio/minio:latest
+    container_name: minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/scripts/init.sh"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_SERVER_URL: http://minio:9000
+      ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE:-s3a://warehouse}
+      MINIO_ADDITIONAL_BUCKETS: ${MINIO_ADDITIONAL_BUCKETS:-}
+    volumes:
+      - ./infrastructure/minio/scripts/init.sh:/scripts/init.sh:ro
+    restart: "no"
+    networks:
+      - retail-net
+
+  iceberg-rest:
+    image: tabulario/iceberg-rest:0.7.0
+    container_name: iceberg-rest
+    ports:
+      - "8181:8181"
+    environment:
+      AWS_REGION: ${S3_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      CATALOG_WAREHOUSE: ${ICEBERG_WAREHOUSE}
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: ${S3_ENDPOINT}
+      CATALOG_S3_ACCESS__KEY__ID: ${MINIO_ROOT_USER}
+      CATALOG_S3_SECRET__ACCESS__KEY: ${MINIO_ROOT_PASSWORD}
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+      CATALOG_S3_REGION: ${S3_REGION:-us-east-1}
+    depends_on:
+      - minio
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8181/v1/config"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     networks:
       - retail-net
 
@@ -86,6 +164,8 @@ volumes:
   flink_state:
     driver: local
   pulsar_data:
+    driver: local
+  minio_data:
     driver: local
 
 networks:

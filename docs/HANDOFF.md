@@ -1,64 +1,80 @@
 # HANDOFF - Retail Video Analytics
 
 ## Current Status (Trạng thái hiện tại)
-**Branch**: `infra/setup`  
-**Đang làm**: Hoàn thiện infrastructure setup và integration testing  
-**Lý do**: Cần hoàn thành full pipeline trước khi merge về main
+**Branch**: `don`  
+**Đang làm**: Iceberg lakehouse integration với MinIO; debug Flink bronze ingestion bị `NoSuchMethodError` từ Pulsar client  
+**Lý do**: Infrastructure stack complete (Pulsar + Flink + MinIO + Iceberg REST), nhưng job streaming đang restart liên tục do xung đột version Pulsar → chưa ghi được dữ liệu xuống Iceberg
+**Mới cập nhật**: Pulsar metadata producer & demo script khả dụng; Flink image đã bundle thêm Avro + Jackson và fix checkpoint directory; đã ghi chú blocker Pulsar client trong data-flow guide
 
 ## TODO & Next Steps (Các bước tiếp theo - ưu tiên)
 
 ### High Priority
-1. **Complete Docker infrastructure setup** 
-   - Thêm MinIO, Trino, Grafana vào docker-compose.yml
-   - Test integration giữa Pulsar ↔ Flink ↔ Iceberg
+1. **Iceberg-MinIO Integration Verification**
+   - Unblock lỗi `NoSuchMethodError` để job Flink chạy ổn định
+   - Confirm bảng bronze nhận dữ liệu sau job Flink
+   - Kiểm tra lại cấu hình region cho REST catalog nếu còn lỗi
+   - Truy vấn dữ liệu bằng Iceberg REST/Trino (khi sẵn sàng)
    
-2. **End-to-end pipeline testing**
-   - Test full flow: video input → AI processing → Pulsar → Flink → storage
-   - Validate latency requirements (≤ 3-5s E2E)
-
-3. **Configuration management**
-   - Hoàn thiện .env configuration
-   - Add production-ready configs cho các services
+2. **AI Pipeline Integration với Pulsar**
+   - Pulsar producer Python (`ai/emit/pulsar_producer.py`) + demo script (`scripts/demo_send_to_pulsar.py`) sẵn sàng thử nghiệm
+   - Connect `ai/emit/json_emitter.py` với Pulsar producer trong pipeline chính
+   - Test full flow: video input → AI processing → Pulsar topic
+   
+3. **Flink Jobs Development**
+   - Bronze job submit thành công nhưng đang `RESTARTING` do thiếu method trong Pulsar client
+   - Sau khi fix dependency, bổ sung monitoring & mở rộng logic xử lý (nếu cần)
 
 ### Medium Priority  
-4. **Monitoring & Alerting setup**
-   - Add Prometheus + Alertmanager configs
-   - Setup Grafana dashboards cho monitoring
+4. **Trino Query Engine**
+   - Add Trino service vào docker-compose
+   - Connect với Iceberg tables for BI queries
    
-5. **Documentation completion**
-   - Update installation/deployment guide
-   - API documentation cho AI modules
+5. **Monitoring Stack**
+   - Add Prometheus + Grafana services
+   - Setup dashboards cho pipeline monitoring
 
-6. **Performance optimization**
-   - GPU support cho YOLOv8
-   - Throughput testing (target: 50-200 msg/s)
+6. **Performance Testing**
+   - Load testing với multiple video streams
+   - Validate latency requirements (≤ 3-5s E2E)
 
 ## Key Paths (Đường dẫn quan trọng)
 - **AI Modules**: `ai/detect/`, `ai/track/`, `ai/ingest/`, `ai/emit/`
-- **Infrastructure**: `infrastructure/flink/`, `infrastructure/pulsar/`
-- **Config**: `configs/.env.example`, `docker-compose.yml`
-- **Test Data**: `data/videos/`, `yolov8n.pt`
-- **Scripts**: `scripts/make_synth_video.py`
+- **Infrastructure**: `infrastructure/flink/`, `infrastructure/pulsar/`, `infrastructure/minio/`, `infrastructure/iceberg/`
+- **Config**: `.env` (credentials), `docker-compose.yml` (4 services), `.gitattributes` (line endings)
+- **Jobs**: `flink-jobs/` (streaming jobs development)
+- **Test Data**: `data/videos/`, `yolov8n.pt`, `detections_output.ndjson`
+- **Documentation**: `docs/data-flow-guide.md`, `docs/HANDOFF.md`, `docs/CHANGELOG.md`
 
 ## Latest Checks (Kết quả test gần nhất)
-- **AI Pipeline**: ✅ Individual modules working (detect, track, emit)
-- **Pulsar Setup**: ✅ Configuration complete, cần test integration  
-- **Flink Setup**: ✅ Configuration complete, cần test với Pulsar
-- **Docker Compose**: ⚠️ Partial - thiếu MinIO, Trino, Grafana services
-- **E2E Integration**: ❌ Chưa test - đợi infrastructure hoàn thành
+- **Docker Infrastructure**: ✅ All services running (Pulsar, Flink, MinIO, Iceberg REST)
+- **Port Configuration**: ✅ Resolved conflicts (Pulsar:8082, Flink:8081, MinIO:9000/9001, Iceberg:8181)
+- **MinIO Setup**: ✅ Credentials configured, warehouse bucket created, healthcheck passing
+- **Pulsar Setup**: ✅ Broker healthy, admin API accessible on port 8082
+- **Flink Setup**: ✅ JobManager + TaskManager healthy, Web UI on port 8081
+- **Flink SQL Job**: ⚠️ Submit thành công nhưng runtime `RESTARTING` vì `NoSuchMethodError` tại `PulsarClientImpl.getPartitionedTopicMetadata`; cần đồng bộ lại bộ JAR Pulsar
+- **Iceberg REST**: ⚠️ Service running, namespace created, table creation failing (AWS region issue)
+- **Cross-Platform**: ✅ PowerShell commands documented, .gitattributes configured
+- **Pulsar Producer Demo**: ✅ Python & Docker workflow gửi metadata vào topic persistent://retail/metadata/events
+- **Pulsar Producer Image Build**: ✅ retail/pulsar-producer build thành công sau khi bỏ loại trừ detections_output.ndjson khỏi .dockerignore
 
 ## Schemas/Contracts (Schema hiện tại)
 - **Detection Output**: NDJSON format (xem `detections_output.ndjson`)
 - **Video Input**: Support MP4, AVI via CV2/GStreamer
-- **Pulsar Schema**: Chưa define - cần implement Avro schema
+- **Pulsar Schema**: JSON schema defined (`infrastructure/pulsar/schema/metadata-json-schema.json`)
+- **MinIO Buckets**: `warehouse/` (Iceberg lakehouse), buckets auto-created via scripts
+- **Iceberg Tables**: Bronze layer schemas defined (`infrastructure/iceberg/sql/`)
 
 ## Environment (Môi trường)
-- **Python**: 3.12 (venv: `.venv312/`)
-- **Dependencies**: Requirements chưa được define trong requirements.txt
-- **Docker**: docker-compose.yml (partial implementation)
-- **Models**: YOLOv8 nano (`yolov8n.pt`) - 6MB model cho testing
+- **Python**: 3.12 (venv: `.venv312/`), packages: ultralytics, opencv-python, deep-sort-realtime
+- **Docker Services**: Pulsar (6650,8082), Flink (8081), MinIO (9000,9001), Iceberg REST (8181)
+- **Docker Compose**: v4 services stack, environment variables via `.env`
+- **Git**: .gitattributes configured for cross-platform compatibility
+- **Line Endings**: LF preserved for .sh, .env, config files
 
 ## Notes
-- Branch `infra/setup` có infrastructure configs mới nhất
-- Main branch stable với basic AI functionality
-- Cần merge về main sau khi hoàn thành infrastructure testing
+- Infrastructure stack hoàn tất và stable (4/4 services healthy)
+- Data flow guide available tại `docs/data-flow-guide.md` với PowerShell commands
+- Iceberg lakehouse partially configured, cần fix AWS region cho S3 connectivity
+- Full docker-compose stack deployed, ready cho end-to-end testing
+- Branch `don` có complete infrastructure, ready cho AI pipeline integration
+- Pulsar demo producer sẵn sàng (`scripts/demo_send_to_pulsar.py`, `infrastructure/pulsar/producer.Dockerfile`) hỗ trợ kiểm thử nhanh

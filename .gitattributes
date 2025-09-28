@@ -1,0 +1,32 @@
+# Git attributes for consistent line endings across platforms
+
+# Prevent Git from converting line endings for shell scripts
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Preserve Unix line endings for environment files
+*.env text eol=lf
+*.env.example text eol=lf
+
+# Preserve Unix line endings for configuration files
+*.conf text eol=lf  
+*.properties text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# Standard text files use platform-appropriate line endings
+*.md text
+*.txt text
+*.py text
+*.js text
+*.json text
+*.java text
+*.scala text
+
+# Binary files should not be touched by Git
+*.jar binary
+*.pt binary
+*.avi binary
+*.mp4 binary
+*.jpg binary
+*.png binary

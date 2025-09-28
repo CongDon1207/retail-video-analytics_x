@@ -1,4 +1,4 @@
-# Retail Video Analytics (Lakehouse, Realtime)
+﻿# Retail Video Analytics (Lakehouse, Realtime)
 
 > Realtime pipeline thu thập & xử lý **metadata video** cho chuỗi bán lẻ.
 > Stack: **GStreamer + YOLOv8 + DeepSort → Pulsar → Flink → Iceberg (REST Catalog) on MinIO → Trino → Grafana**
@@ -39,7 +39,7 @@
 │  ├─ ingest/             # Video source handling (CV2, GStreamer)
 │  └─ track/              # DeepSort tracker implementation
 ├─ infrastructure/        # Infrastructure configs và deployment
-│  ├─ flink/              # Apache Flink configuration
+│  ├─ flink/              # Apache Flink configuration & custom image (Pulsar + Iceberg + Avro/Jackson bundles)
 │  └─ pulsar/             # Apache Pulsar configuration
 ├─ configs/               # Configuration files
 │  └─ .env.example        # Environment variables template
@@ -69,6 +69,19 @@
 
   * MinIO: `9000/9001`, Trino: `8080`, Pulsar: `6650/8080`, Prometheus: `9090`, Grafana: `3000`, Iceberg REST: `8181`, Airflow Web: `8088`
 
+## 📦 Pulsar Metadata Producer (Demo)
+
+
+6. **Chạy producer bằng Docker** (không cần cài Python local):
+   ```bash
+   docker build -f infrastructure/pulsar/producer.Dockerfile -t retail/pulsar-producer .
+   docker run --rm --network=retail-video-analytics_retail-net \
+     retail/pulsar-producer \
+     --service-url pulsar://pulsar-broker:6650 \
+     --topic persistent://retail/metadata/events
+   ```
+   Nếu đổi tên thư mục project, thay `retail-video-analytics` trong tên network bằng tên mới của bạn.
+
 ---
 
 ## 📚 Tài liệu chi tiết
@@ -81,4 +94,3 @@
 ## 👥 Contributors
 - [Nguyễn Tấn Hùng](https://github.com/hungfnguyen)
 - [Nguyễn Công Đôn](https://github.com/CongDon1207)
-

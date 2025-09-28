@@ -1,4 +1,4 @@
 {
   "type": "AVRO",
-  "schema": "{\n    \"type\": \"record\",\n    \"name\": \"RetailDetection\",\n    \"namespace\": \"retail.metadata\",\n    \"fields\": [\n      {\"name\": \"schema_version\", \"type\": \"string\"},\n      {\"name\": \"pipeline_run_id\", \"type\": \"string\"},\n      {\"name\": \"frame_index\", \"type\": \"long\"},\n      {\"name\": \"payload\", \"type\": \"string\"}\n    ]\n  }"
+  "schema": "{\n  \"type\": \"record\",\n  \"name\": \"RetailDetection\",\n  \"fields\": [\n    {\n      \"name\": \"schema_version\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"pipeline_run_id\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"frame_index\",\n      \"type\": \"long\"\n    },\n    {\n      \"name\": \"payload\",\n      \"type\": \"string\"\n    }\n  ]\n}"
 }

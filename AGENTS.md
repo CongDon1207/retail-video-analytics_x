@@ -51,6 +51,7 @@ Before starting a new conversation, confirm you have read and understood:
 - If you hit permission or resource errors, report them clearly and suggest safe manual steps.
 - Do not add new dependencies unless absolutely required and pre-approved.
 - Default to wrapping any long-lived command with a shell-level timeout (e.g., `timeout 70s docker exec ...`) to ensure Codex terminates runaway processes automatically.
+- after excution completely, read section 10. Auto-Docs for Project Memory in AGENTS.md and update docs
 
 ## 5. Decision Quick-Guide
 1. Need to touch local code -> use Serena.
