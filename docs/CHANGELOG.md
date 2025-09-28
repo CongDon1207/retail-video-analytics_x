@@ -6,6 +6,7 @@ Ghi láº¡i táº¥t cáº£ cÃ¡c cÃ´ng viá»‡c Ä‘Ã£ hoÃ n thÃ 
 
 ### Pulsar Demo Payload Fix
 - **2025-09-28: Align Pulsar client libs for Flink image at infrastructure/flink/Dockerfile - Added admin API jar to unblock SQL client (completed)**
+- **2025-09-28: Bundle Avro 1.11.3 + Jackson 2.15.2 and pre-create checkpoint dirs at infrastructure/flink/Dockerfile - Flink SQL bronze ingestion job runs without missing classes/checkpoint errors (completed)**
 - **2025-09-28: Build Flink lakehouse image at infrastructure/flink/Dockerfile & update docker-compose to preload connectors (completed)**
 - **2025-09-28: Automate MinIO warehouse bootstrap with minio-init service & cleanup scripts - Ensure ICEBERG_WAREHOUSE bucket exists on startup (completed)**
 - **2025-09-28: Document parallel venv + Docker quick-start paths at docs/guide.md - Users can choose workflow per environment (completed)**
@@ -14,7 +15,9 @@ Ghi láº¡i táº¥t cáº£ cÃ¡c cÃ´ng viá»‡c Ä‘Ã£ hoÃ n thÃ 
 - **2025-09-28: Install pulsar-client[avro] in Pulsar producer image at infrastructure/pulsar/producer.Dockerfile - Enable Avro schema support during container run (completed)**
 - **2025-09-28: Align producer Avro record with registered schema at ai/emit/pulsar_producer.py & infrastructure/pulsar/schema/metadata-json-schema.json - Resolve IncompatibleSchema errors when sending messages (completed)**
 - **2025-09-28: Normalize bbox input handling at ai/emit/json_emitter.py - Fix TypeError when detections provide bbox as dict strings (completed)**
+- **2025-09-28: Allow detections_output.ndjson in producer Docker build context at .dockerignore - Unblock retail/pulsar-producer image build (completed)**
 - **2025-09-28: Convert init-topics.sh to LF endings at infrastructure/pulsar/scripts/init-topics.sh - Fix pulsar-init pipefail errors under Linux entrypoint (completed)**
+- **2025-09-28: Bổ sung hướng dẫn lỗi NoSuchMethodError của Pulsar client tại docs/data-flow-guide.md - Ghi chú blocker Flink bronze job chờ khắc phục (completed)**
 
 ## 2025-09-26
 

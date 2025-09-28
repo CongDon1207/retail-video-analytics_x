@@ -97,6 +97,8 @@ MSYS_NO_PATHCONV=1 docker exec -it flink-jobmanager bash -lc "/opt/flink/bin/sql
 ### 3.4 Kiểm tra nhanh
 
 ```bash
+
+docker exec minio mc alias set local http://localhost:9000 minioadmin minioadmin123
 # Xem bucket trong MinIO
 docker exec minio mc ls local/warehouse
 
@@ -132,3 +134,14 @@ MSYS_NO_PATHCONV=1 docker exec -it flink-jobmanager bash -lc "/opt/flink/bin/sql
 ```
 
 **Fix vĩnh viễn:** Rebuild Dockerfile với đầy đủ dependencies (đang được fix trong version tiếp theo).
+
+### **Lỗi: NoSuchMethodError tại PulsarClientImpl.getPartitionedTopicMetadata**
+
+**Triệu chứng:** Job `bronze_ingest.sql` liên tục `RESTARTING`, log hiển thị `java.lang.NoSuchMethodError: 'java.util.concurrent.CompletableFuture org.apache.pulsar.client.impl.PulsarClientImpl.getPartitionedTopicMetadata(java.lang.String)'`.
+
+**Nguyên nhân:** Phiên bản `flink-connector-pulsar-4.1.0-1.18` yêu cầu `pulsar-client` export method mới (histogram metrics). JAR hiện tại (`pulsar-client-all-4.1.0.jar`) thiếu method vì bị shade/strip; cần đồng bộ đúng cặp `pulsar-client`/`pulsar-client-original` với connector.
+
+**Hướng xử lý tạm thời:**
+- Thêm `pulsar-client-original-4.1.0.jar` vào `/opt/flink/lib` hoặc chuyển sang bộ JAR `pulsar-client-4.1.0.jar` + `pulsar-client-admin-4.1.0.jar` thay vì `client-all`.
+- Nếu vẫn lỗi, cân nhắc hạ connector xuống 4.0.x tương thích với JAR hiện có.
+- Sau khi thay JAR, rebuild image `infrastructure/flink/Dockerfile` và `docker compose up -d --force-recreate flink-jobmanager flink-taskmanager` trước khi re-submit job.

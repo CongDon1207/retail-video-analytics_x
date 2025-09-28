@@ -31,30 +31,38 @@ WITH (
   'write.format.default' = 'parquet'
 );
 
+-- Pulsar source (đọc metadata đúng chuẩn)
 CREATE TEMPORARY TABLE pulsar_source (
   schema_version STRING,
   pipeline_run_id STRING,
   frame_index BIGINT,
   payload STRING,
-  camera_id STRING METADATA FROM 'properties.camera_id',
-  store_id STRING METADATA FROM 'properties.store_id',
-  event_time TIMESTAMP_LTZ(3) METADATA FROM 'event-time' VIRTUAL,
-  publish_ts TIMESTAMP_LTZ(3) METADATA FROM 'publish-time' VIRTUAL
+
+  -- Lấy toàn bộ message properties vào MAP
+  props MAP<STRING, STRING> METADATA FROM 'properties' VIRTUAL,
+
+  -- Rút key cụ thể từ props (computed columns: KHÔNG khai báo kiểu trước AS)
+  camera_id AS props['camera_id'],
+  store_id  AS props['store_id'],
+
+  -- Metadata thời gian: dùng tên key có dấu gạch dưới
+  event_time TIMESTAMP_LTZ(3) METADATA FROM 'event_time' VIRTUAL,
+  publish_ts TIMESTAMP_LTZ(3) METADATA FROM 'publish_time' VIRTUAL
 ) WITH (
   'connector' = 'pulsar',
   'topics' = 'persistent://retail/metadata/events',
   'service-url' = 'pulsar://pulsar-broker:6650',
-
   'source.start.message-id' = 'earliest',
   'format' = 'avro'
 );
 
 INSERT INTO rva.bronze_raw
-SELECT schema_version,
-       pipeline_run_id,
-       frame_index,
-       payload,
-       COALESCE(camera_id, 'unknown') AS camera_id,
-       COALESCE(store_id, 'unknown') AS store_id,
-       COALESCE(event_time, publish_ts, CURRENT_TIMESTAMP) AS ingest_ts
+SELECT
+  schema_version,
+  pipeline_run_id,
+  frame_index,
+  payload,
+  COALESCE(camera_id, 'unknown') AS camera_id,
+  COALESCE(store_id,  'unknown') AS store_id,
+  COALESCE(event_time, publish_ts, CURRENT_TIMESTAMP) AS ingest_ts
 FROM pulsar_source;

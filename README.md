@@ -39,7 +39,7 @@
 │  ├─ ingest/             # Video source handling (CV2, GStreamer)
 │  └─ track/              # DeepSort tracker implementation
 ├─ infrastructure/        # Infrastructure configs và deployment
-│  ├─ flink/              # Apache Flink configuration
+│  ├─ flink/              # Apache Flink configuration & custom image (Pulsar + Iceberg + Avro/Jackson bundles)
 │  └─ pulsar/             # Apache Pulsar configuration
 ├─ configs/               # Configuration files
 │  └─ .env.example        # Environment variables template

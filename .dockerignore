@@ -14,6 +14,5 @@
 !yolov8n.pt
 ai/__pycache__/
 data/
-detections_output.ndjson
 README.md
 AGENTS.md

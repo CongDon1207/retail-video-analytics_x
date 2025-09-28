@@ -2,17 +2,18 @@
 
 ## Current Status (Trạng thái hiện tại)
 **Branch**: `don`  
-**Đang làm**: Iceberg lakehouse integration với MinIO, debugging table creation issues  
-**Lý do**: Infrastructure stack complete (Pulsar + Flink + MinIO + Iceberg REST), cần fix AWS region config cho Iceberg S3 connectivity
-**Mới cập nhật**: Pulsar metadata producer & demo script khả dụng cho thử nghiệm end-to-end ban đầu
+**Đang làm**: Iceberg lakehouse integration với MinIO; debug Flink bronze ingestion bị `NoSuchMethodError` từ Pulsar client  
+**Lý do**: Infrastructure stack complete (Pulsar + Flink + MinIO + Iceberg REST), nhưng job streaming đang restart liên tục do xung đột version Pulsar → chưa ghi được dữ liệu xuống Iceberg
+**Mới cập nhật**: Pulsar metadata producer & demo script khả dụng; Flink image đã bundle thêm Avro + Jackson và fix checkpoint directory; đã ghi chú blocker Pulsar client trong data-flow guide
 
 ## TODO & Next Steps (Các bước tiếp theo - ưu tiên)
 
 ### High Priority
-1. **Iceberg-MinIO Integration Fix**
-   - Fix AWS region configuration trong Iceberg REST service
-   - Complete table creation cho lakehouse layer
-   - Test namespace và table operations
+1. **Iceberg-MinIO Integration Verification**
+   - Unblock lỗi `NoSuchMethodError` để job Flink chạy ổn định
+   - Confirm bảng bronze nhận dữ liệu sau job Flink
+   - Kiểm tra lại cấu hình region cho REST catalog nếu còn lỗi
+   - Truy vấn dữ liệu bằng Iceberg REST/Trino (khi sẵn sàng)
    
 2. **AI Pipeline Integration với Pulsar**
    - Pulsar producer Python (`ai/emit/pulsar_producer.py`) + demo script (`scripts/demo_send_to_pulsar.py`) sẵn sàng thử nghiệm
@@ -20,8 +21,8 @@
    - Test full flow: video input → AI processing → Pulsar topic
    
 3. **Flink Jobs Development**
-   - Tạo Flink streaming jobs trong `flink-jobs/`
-   - Implement Pulsar source → processing → Iceberg sink
+   - Bronze job submit thành công nhưng đang `RESTARTING` do thiếu method trong Pulsar client
+   - Sau khi fix dependency, bổ sung monitoring & mở rộng logic xử lý (nếu cần)
 
 ### Medium Priority  
 4. **Trino Query Engine**
@@ -50,10 +51,11 @@
 - **MinIO Setup**: ✅ Credentials configured, warehouse bucket created, healthcheck passing
 - **Pulsar Setup**: ✅ Broker healthy, admin API accessible on port 8082
 - **Flink Setup**: ✅ JobManager + TaskManager healthy, Web UI on port 8081
-- **Flink SQL Job**: Pending. Rebuild image with Pulsar admin API jar, rerun bronze_ingest.sql to confirm dependency fix
+- **Flink SQL Job**: ⚠️ Submit thành công nhưng runtime `RESTARTING` vì `NoSuchMethodError` tại `PulsarClientImpl.getPartitionedTopicMetadata`; cần đồng bộ lại bộ JAR Pulsar
 - **Iceberg REST**: ⚠️ Service running, namespace created, table creation failing (AWS region issue)
 - **Cross-Platform**: ✅ PowerShell commands documented, .gitattributes configured
 - **Pulsar Producer Demo**: ✅ Python & Docker workflow gửi metadata vào topic persistent://retail/metadata/events
+- **Pulsar Producer Image Build**: ✅ retail/pulsar-producer build thành công sau khi bỏ loại trừ detections_output.ndjson khỏi .dockerignore
 
 ## Schemas/Contracts (Schema hiện tại)
 - **Detection Output**: NDJSON format (xem `detections_output.ndjson`)

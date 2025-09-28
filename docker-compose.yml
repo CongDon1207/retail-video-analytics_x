@@ -56,6 +56,7 @@ services:
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
+      LOG4J_CONFIGURATION_FILE: /opt/flink/conf/log4j2.properties
       FLINK_PROPERTIES: |
         jobmanager.rpc.address=flink-jobmanager
         taskmanager.numberOfTaskSlots=4
@@ -81,6 +82,7 @@ services:
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
+      LOG4J_CONFIGURATION_FILE: /opt/flink/conf/log4j2.properties
       FLINK_PROPERTIES: |
         jobmanager.rpc.address=flink-jobmanager
         taskmanager.numberOfTaskSlots=4
