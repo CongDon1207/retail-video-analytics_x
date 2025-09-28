@@ -28,7 +28,6 @@
 - When reading a file, you must go through the entire code in that file to fully understand the context.
 
 ## 3. Pre-Task Checklist
-## 3. Pre-Task Checklist
 Before starting a new conversation, confirm you have read and understood:
 - The user's immediate request and overall goal (PRD or ticket).
 - Key project documentation:
@@ -54,8 +53,14 @@ Before starting a new conversation, confirm you have read and understood:
 - Default to wrapping any long-lived command with a shell-level timeout (e.g., `timeout 70s docker exec ...`) to ensure Codex terminates runaway processes automatically.
 - after excution completely, read section 10. Auto-Docs for Project Memory in AGENTS.md and update docs
 
-## 5. MCP Tool Usage Protocol - Agent Rules
-**Primary directive:** Always choose the most specific tool. Priority: Serena -> Context7 -> DeepWiki -> Web Search -> Playwright-MCP. Use Sequential Thinking as a meta-tool to plan before acting.
+## 5. Decision Quick-Guide
+1. Need to touch local code -> use Serena.
+2. Need authoritative API info -> use Context7.
+3. Need news or real-time context -> use Web Search.
+4. Need live web interaction or network diagnostics -> use chrome-devtools-MCP.
+
+## 6. MCP Tool Usage Protocol - Agent Rules
+**Primary directive:** Always choose the most specific tool. Call MCP tools only when necessary; never use them to summarize known context.
 
 **Serena - Local codebase intelligence**
 - Use when: analyzing or modifying the current project, navigating symbols or call graphs or ownership, performing small-to-medium refactors, updating tests, running lint or format or unit tests, preparing small patches with rationale.
@@ -65,39 +70,16 @@ Before starting a new conversation, confirm you have read and understood:
 - Use when: checking official docs for signatures, flags, breaking changes, migrations, or configuration; confirming behavior or versioning instead of guessing.
 - Avoid when: editing local code (Serena) or seeking implementation patterns (DeepWiki).
 
-**DeepWiki - Public codebase knowledge**
-- Use when: sampling or comparing open-source implementations to learn patterns and pitfalls; extracting concise examples to inform design (never copy-paste).
-- Avoid when: you need authoritative API definitions (Context7) or local code insights (Serena).
-
 **Web Search - General and real-time info**
 - Use when: looking for release notes, incidents, ecosystem changes, credible blog posts, or non-code context such as pricing, service status, or announcements.
 - Avoid when: official docs exist (Context7) or you only need code patterns (DeepWiki).
 
-**Sequential Thinking - Meta-tool**
-- Use when: tasks are complex or multi-step.
-- Rule: Print a brief step-by-step plan first, execute tools in that order, update the plan if reality diverges.
-
-**Playwright-MCP - Web automation and live UI inspection**
+**chrome-devtools-MCP - Web automation and live UI inspection**
 - Use when: interacting with real webpages (click or fill or navigate), capturing the accessibility tree for stable references, detecting or logging runtime or network errors (HTTP >= 400, request failures, console errors), reproducing end-to-end UI bugs, or extracting dynamic content (SPAs, login flows).
 - Minimal workflow: 1) Open the target URL (headless or headful). 2) Snapshot the accessibility tree. 3) Act on deterministic element references (click, fill, press). 4) Observe `response`, `requestfailed`, and console output for failures. 5) Assert DOM text, roles, or attributes. 6) Clean up the session or persist the profile when needed.
 - Safety: whitelist origins (localhost or staging), prefer isolated profiles, group actions to minimize calls, log every HTTP >= 400.
 
-## 6. Global Operational Rules
-- Call MCP tools only when necessary; never use them to summarize known context.
-- Tool timeouts and retries: limit each call to 8 seconds; if it times out, retry once with a narrower scope (for example, lower top_k or a tighter selector or URL). If it still fails, report succinctly and propose a manual fallback.
-- Checkpointing: after every 3-5 tool calls, provide a summary of 100 words or fewer covering what you did, what you found, and the next step.
-- Evidence hierarchy: escalate Serena -> Context7 -> DeepWiki -> Web Search only when earlier tiers cannot answer.
-- Privacy and safety: avoid production impact unless explicitly allowed; do not take destructive actions; do not exfiltrate data.
-
-## 7. Decision Quick-Guide
-1. Need to touch local code -> use Serena.
-2. Need authoritative API info -> use Context7.
-3. Need community implementation patterns -> use DeepWiki.
-4. Need news or real-time context -> use Web Search.
-5. Need a plan -> use Sequential Thinking.
-6. Need live web interaction or network diagnostics -> use Playwright-MCP.
-
-## 8. Issue Handling and Debugging Protocol
+## 7. Issue Handling and Debugging Protocol
 **Step 1 - Intake & Initial Analysis**
 - Objective: understand the incident from the incoming report.
 - Inputs the agent must capture:
@@ -152,10 +134,10 @@ Before starting a new conversation, confirm you have read and understood:
 - **Stay Focused**: Address the specific bug without unnecessary changes
 - **Test Thoroughly**: Verify fixes work in various scenarios and environments
 
-## 10. Auto-Docs for Project Memory (README.md / HANDOFF.md / CHANGELOG.md)
+## 8. Auto-Docs for Project Memory (README.md / HANDOFF.md / CHANGELOG.md)
 Goal: Store the project's "live state" in 3 concise files. A new session only needs to read these 3 files to continue, without scanning the entire repo.
 
-### 10.1 Role of the 3 Files
+### 8.1 Role of the 3 Files
 - README.md (stable overview):
   - Project goal/scope.
   - Architecture & folder structure (high-level).
@@ -169,14 +151,14 @@ Goal: Store the project's "live state" in 3 concise files. A new session only ne
 - CHANGELOG.md (log of completed work):
   - Records a chronological history of all completed tasks, features, and bug fixes. It serves as a definitive log of the project's progress, showing what has been accomplished over time.
 
-### 10.2 When to Auto-Update (triggers)
+### 8.2 When to Auto-Update (triggers)
 Update immediately after any of the following changes:
 - A feature/work step/screen/endpoint/script is completed.
 - A bug fix affecting behavior, API, UI, or data.
 - A change in folder structure/architecture, schema/contract, or environment/dependency versions.
 - A major milestone or progress checkpoint is reached.
 
-### 10.3 What to Update (concise content)
+### 8.3 What to Update (concise content)
 - README.md (relevant sections only):
   - Stack & Versions, Architecture (1-2 sentences), Recent decisions (1-3 lines).
 - HANDOFF.md:
