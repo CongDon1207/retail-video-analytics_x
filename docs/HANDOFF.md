@@ -50,6 +50,7 @@
 - **MinIO Setup**: ✅ Credentials configured, warehouse bucket created, healthcheck passing
 - **Pulsar Setup**: ✅ Broker healthy, admin API accessible on port 8082
 - **Flink Setup**: ✅ JobManager + TaskManager healthy, Web UI on port 8081
+- **Flink SQL Job**: Pending. Rebuild image with Pulsar admin API jar, rerun bronze_ingest.sql to confirm dependency fix
 - **Iceberg REST**: ⚠️ Service running, namespace created, table creation failing (AWS region issue)
 - **Cross-Platform**: ✅ PowerShell commands documented, .gitattributes configured
 - **Pulsar Producer Demo**: ✅ Python & Docker workflow gửi metadata vào topic persistent://retail/metadata/events
