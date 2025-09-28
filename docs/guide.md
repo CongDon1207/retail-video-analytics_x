@@ -82,6 +82,19 @@ py -3.12 -m pip list | grep -E "(ultralytics|opencv|deep-sort)"
 py -3.12 -m pip list | findstr /R "ultralytics opencv deep-sort"
 ```
 
+### Lựa chọn nhanh: Docker producer (không cần venv)
+
+```bash
+docker build -f infrastructure/pulsar/producer.Dockerfile -t retail/pulsar-producer .
+docker run --rm --network=retail-video-analytics_retail-net \
+  retail/pulsar-producer \
+  --service-url pulsar://pulsar-broker:6650 \
+  --topic persistent://retail/metadata/events \
+  --limit 10
+```
+
+> Gợi ý: dùng `--dry-run` nếu chỉ muốn xem payload, và nhớ đổi `--network` nếu bạn đặt tên stack khác.
+
 ## 🚀 Cách chạy Pipeline từng bước
 
 ### Bước 1: Chuẩn bị video test

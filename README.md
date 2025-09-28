@@ -71,36 +71,7 @@
 
 ## 📦 Pulsar Metadata Producer (Demo)
 
-1. **Chuẩn bị môi trường Python** (khuyến nghị dùng venv):
-   ```bash
-   python -m venv .venv312
-   # Linux/Mac
-   source .venv312/bin/activate
-   # Windows PowerShell / Git Bash
-   .venv312\Scripts\activate
-   pip install --upgrade pip
-   pip install pulsar-client==3.5.0
-   ```
-2. **Khai báo biến môi trường** để Python thấy module `ai` và in Unicode đúng:
-   ```bash
-   export PYTHONPATH=.
-   export PYTHONIOENCODING=utf-8
-   # PowerShell
-   $env:PYTHONPATH='.'; $env:PYTHONIOENCODING='utf-8'
-   ```
-3. **Khởi động stack hạ tầng** theo `docs/data-flow-guide.md` (ví dụ `docker compose up -d`).
-4. **Kiểm thử nhanh (không gửi message)** — có thể chạy ngay cả khi Pulsar chưa bật:
-   ```bash
-   python scripts/demo_send_to_pulsar.py --dry-run --limit 3
-   ```
-   Lệnh sẽ đọc NDJSON và in thông tin từng frame mà không tạo connection tới broker.
-5. **Gửi dữ liệu thật vào Pulsar** (broker đã chạy và schema đã khởi tạo):
-   ```bash
-   python scripts/demo_send_to_pulsar.py --ndjson detections_output.ndjson \
-     --service-url pulsar://localhost:6650 \
-     --topic persistent://retail/metadata/events
-   ```
-   Có thể bỏ các tham số nếu dùng cấu hình mặc định trong repo.
+
 6. **Chạy producer bằng Docker** (không cần cài Python local):
    ```bash
    docker build -f infrastructure/pulsar/producer.Dockerfile -t retail/pulsar-producer .

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import sys
@@ -7,6 +7,32 @@ from typing import Any, Dict, Iterable, Optional, TextIO, Tuple
 
 # Dict chứa thông tin 1 detection: bbox, confidence, class_name, track_id, etc.
 DetectionDict = Dict[str, Any]
+
+
+def _to_float(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _extract_bbox(raw: Any) -> Tuple[float, float, float, float]:
+    if isinstance(raw, dict):
+        return (
+            _to_float(raw.get("x1")),
+            _to_float(raw.get("y1")),
+            _to_float(raw.get("x2")),
+            _to_float(raw.get("y2")),
+        )
+    if isinstance(raw, (list, tuple)):
+        values = list(raw) + [0, 0, 0, 0]
+        return (
+            _to_float(values[0]),
+            _to_float(values[1]),
+            _to_float(values[2]),
+            _to_float(values[3]),
+        )
+    return (0.0, 0.0, 0.0, 0.0)
 
 
 class JsonEmitter:
@@ -18,7 +44,7 @@ class JsonEmitter:
         self._open()
 
     def _open(self) -> None:
-        """Mở file output hoặc dùng stdout"""
+        """Mở file output hoặc dạng stdout"""
         if self.out_path in ("-", "", None):
             self._handle = sys.stdout
             return
@@ -40,17 +66,19 @@ class JsonEmitter:
         detections: Iterable[DetectionDict],
     ) -> Dict[str, Any]:
         """Tạo dict JSON chuẩn hóa cho metadata của một frame."""
-        width, height = image_size
+        width_raw, height_raw = image_size
+        width = _to_float(width_raw)
+        height = _to_float(height_raw)
         frame_payload = []
 
         # Process từng detection trong frame
         for idx, det in enumerate(detections):
-            x1, y1, x2, y2 = det.get("bbox", (0, 0, 0, 0))
-            w = max(x2 - x1, 0)
-            h = max(y2 - y1, 0)
+            x1, y1, x2, y2 = _extract_bbox(det.get("bbox", (0, 0, 0, 0)))
+            w = max(x2 - x1, 0.0)
+            h = max(y2 - y1, 0.0)
             cx = x1 + w / 2.0  # Centroid X
             cy = y1 + h / 2.0  # Centroid Y
-            
+
             # Helper function normalize coordinates [0,1]
             norm = lambda value, denom: value / denom if denom else 0.0
 
@@ -81,7 +109,7 @@ class JsonEmitter:
             "source": source,
             "frame_index": frame_index,
             "capture_ts": capture_ts,
-            "image_size": {"width": width, "height": height},
+            "image_size": {"width": int(round(width)), "height": int(round(height))},
             "detections": frame_payload,
         }
 
@@ -125,3 +153,4 @@ class JsonEmitter:
         if self._handle and self._handle is not sys.stdout:
             self._handle.close()
         self._handle = None
+

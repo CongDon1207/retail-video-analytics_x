@@ -2,6 +2,17 @@
 
 Ghi lại tất cả các công việc đã hoàn thành trong dự án Retail Video Analytics.
 
+## 2025-09-28
+
+### Pulsar Demo Payload Fix
+- **2025-09-28: Document parallel venv + Docker quick-start paths at docs/guide.md - Users can choose workflow per environment (completed)**
+- **2025-09-28: Restore detections_output.ndjson sample at repo root - Dockerized Pulsar producer build succeeds with bundled demo data (completed)**
+- **2025-09-28: Set PYTHONPATH for Pulsar producer container at infrastructure/pulsar/producer.Dockerfile - Fix ModuleNotFoundError for ai package during docker run (completed)**
+- **2025-09-28: Install pulsar-client[avro] in Pulsar producer image at infrastructure/pulsar/producer.Dockerfile - Enable Avro schema support during container run (completed)**
+- **2025-09-28: Align producer Avro record with registered schema at ai/emit/pulsar_producer.py & infrastructure/pulsar/schema/metadata-json-schema.json - Resolve IncompatibleSchema errors when sending messages (completed)**
+- **2025-09-28: Normalize bbox input handling at ai/emit/json_emitter.py - Fix TypeError when detections provide bbox as dict strings (completed)**
+- **2025-09-28: Convert init-topics.sh to LF endings at infrastructure/pulsar/scripts/init-topics.sh - Fix pulsar-init pipefail errors under Linux entrypoint (completed)**
+
 ## 2025-09-26
 
 ### Pulsar Integration Enablement

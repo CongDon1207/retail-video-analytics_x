@@ -10,13 +10,13 @@ from pulsar.schema import AvroSchema, Long, Record, String
 from .json_emitter import DetectionDict, JsonEmitter
 
 
-class RetailDetectionEnvelope(Record):
+class RetailDetection(Record):
     """Avro schema khớp với `metadata-json-schema.json`."""
 
-    schema_version = String()
-    pipeline_run_id = String()
-    frame_index = Long()
-    payload = String()
+    schema_version = String(required=True)
+    pipeline_run_id = String(required=True)
+    frame_index = Long(required=True)
+    payload = String(required=True)
 
 
 class PulsarProducer:
@@ -37,7 +37,7 @@ class PulsarProducer:
         producer_kwargs.setdefault("batching_enabled", False)
 
         self._client: Client = Client(service_url, **client_kwargs)
-        schema = AvroSchema(RetailDetectionEnvelope)
+        schema = AvroSchema(RetailDetection)
         self._producer: Producer = self._client.create_producer(
             topic,
             schema=schema,
@@ -70,7 +70,7 @@ class PulsarProducer:
             detections=detections,
         )
 
-        envelope = RetailDetectionEnvelope(
+        envelope = RetailDetection(
             schema_version=schema_version,
             pipeline_run_id=pipeline_run_id,
             frame_index=int(frame_index),
