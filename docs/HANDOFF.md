@@ -39,7 +39,7 @@
 
 ## Key Paths (Đường dẫn quan trọng)
 - **AI Modules**: `ai/detect/`, `ai/track/`, `ai/ingest/`, `ai/emit/`
-- **Infrastructure**: `infrastructure/flink/`, `infrastructure/pulsar/`, `infrastructure/minio/`, `infrastructure/iceberg/`
+- **Infrastructure**: `infrastructure/flink/`, `infrastructure/pulsar/`, `infrastructure/minio/`, `infrastructure/iceberg/`, `infrastructure/trino/`
 - **Config**: `.env` (credentials), `docker-compose.yml` (4 services), `.gitattributes` (line endings)
 - **Jobs**: `flink-jobs/` (streaming jobs development)
 - **Test Data**: `data/videos/`, `yolov8n.pt`, `detections_output.ndjson`
@@ -74,6 +74,7 @@
 ## Notes
 - Hướng dẫn chạy pipeline AI trên Ubuntu nằm tại `docs/linux/ai_pipeline_ubuntu.md`
 - Docker Compose hiện cấu hình Flink qua `infrastructure/flink/conf/flink-conf.yaml`; đã bỏ `FLINK_PROPERTIES` để tránh ghi đè
+- Trino service mới (`docker-compose.yml`) sử dụng catalog Iceberg REST; cấu hình tại `infrastructure/trino/etc/`
 - Infrastructure stack hoàn tất và stable (4/4 services healthy)
 - Data flow guide available tại `docs/data-flow-guide.md` với PowerShell commands
 - Iceberg lakehouse partially configured, cần fix AWS region cho S3 connectivity

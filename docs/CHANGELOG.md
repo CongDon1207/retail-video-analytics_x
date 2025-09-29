@@ -6,6 +6,7 @@ Ghi láº¡i táº¥t cáº£ cÃ¡c cÃ´ng viá»‡c Ä‘Ã£ hoÃ n thÃ 
 ## 2025-09-30
 
 ### Documentation Updates
+- **2025-09-30: Add Trino service to docker-compose.yml & configure catalog at infrastructure/trino/ - Bổ sung query engine cho Iceberg (completed)**
 - **2025-09-30: Remove FLINK_PROPERTIES env block in docker-compose.yml - Ngăn Docker append lặp cấu hình Flink (completed)**
 - **2025-09-30: Add Ubuntu AI pipeline guide at docs/linux/ai_pipeline_ubuntu.md - Bổ sung hướng dẫn chạy pipeline AI trên Ubuntu (completed)**
 
