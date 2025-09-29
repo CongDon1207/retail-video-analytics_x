@@ -2,6 +2,12 @@
 
 Ghi láº¡i táº¥t cáº£ cÃ¡c cÃ´ng viá»‡c Ä‘Ã£ hoÃ n thÃ nh trong dá»± Ã¡n Retail Video Analytics.
 
+
+## 2025-09-30
+
+### Documentation Updates
+- **2025-09-30: Add Ubuntu AI pipeline guide at docs/linux/ai_pipeline_ubuntu.md - Bổ sung hướng dẫn chạy pipeline AI trên Ubuntu (completed)**
+
 ## 2025-09-28
 
 ### Pulsar Demo Payload Fix

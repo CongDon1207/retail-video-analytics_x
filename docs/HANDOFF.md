@@ -72,6 +72,7 @@
 - **Line Endings**: LF preserved for .sh, .env, config files
 
 ## Notes
+- Hướng dẫn chạy pipeline AI trên Ubuntu nằm tại `docs/linux/ai_pipeline_ubuntu.md`
 - Infrastructure stack hoàn tất và stable (4/4 services healthy)
 - Data flow guide available tại `docs/data-flow-guide.md` với PowerShell commands
 - Iceberg lakehouse partially configured, cần fix AWS region cho S3 connectivity
