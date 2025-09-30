@@ -10,22 +10,8 @@ Hướng dẫn chạy end-to-end pipeline từ video input → AI detection → 
 
 Chạy AI detection trên video để tạo ra file metadata `detections_output.ndjson`.
 
-### **Video mẫu 1 - Surveillance camera:**
 ```bash
-# Chạy AI pipeline với video surveillance
-py -3.12 -m ai.ingest \
-  --backend cv \
-  --src "data/videos/Midtown corner store surveillance video 11-25-18.mp4" \
-  --yolo 1 \
-  --track 1 \
-  --display 1 \
-  --emit detection \
-  --out detections_output.ndjson
-```
-
-### **Video mẫu 2 - General video:**
-```bash
-# Chạy AI pipeline với video thông thường
+# Chạy AI pipeline với video
 py -3.12 -m ai.ingest \
   --backend cv \
   --src "data/videos/video.mp4" \
@@ -36,12 +22,12 @@ py -3.12 -m ai.ingest \
   --out detections_output.ndjson
 ```
 
-### **Giải thích các tham số:**
+**Tham số:**
 - `--backend cv`: Dùng OpenCV làm video backend
 - `--src`: Đường dẫn tới video input
 - `--yolo 1`: Bật YOLOv8 detection
 - `--track 1`: Bật DeepSort tracking
-- `--display 1`: Hiển thị video realtime (có thể tắt với `0`)
+- `--display 1`: Hiển thị video realtime (hoặc `0` để tắt)
 - `--emit detection`: Xuất kết quả detection
 - `--out`: File output NDJSON chứa metadata
 
@@ -49,107 +35,115 @@ py -3.12 -m ai.ingest \
 
 ## 🚀 Bước 2: Gửi metadata vào Pulsar
 
-### **Phương pháp 1: Chạy Producer bằng Docker (Khuyến nghị)**
-
-Build Docker image và chạy producer:
+### Build và chạy Producer
 
 ```bash
 # Build producer image
 docker build -f infrastructure/pulsar/producer.Dockerfile -t retail/pulsar-producer .
 
-# Chạy producer trong Docker network
+# Chạy producer
 docker run --rm --network=retail-video-analytics_retail-net \
   retail/pulsar-producer \
   --service-url pulsar://pulsar-broker:6650 \
   --topic persistent://retail/metadata/events
-
-### **⚠️ Troubleshooting Producer Timeout**
-
-Nếu gặp lỗi `_pulsar.Timeout: Pulsar error: TimeOut` hoặc `TopicPoliciesCacheNotInitException`:
-
-1. **Kiểm tra cấu hình Topic Policies** đã được bật trong `infrastructure/pulsar/conf/standalone.conf`:
-   ```properties
-   systemTopicEnabled=true
-   topicLevelPoliciesEnabled=true
-   ```
-
-2. **Reset Pulsar data nếu có lỗi schema ledger**:
-   ```bash
-   docker-compose down
-   docker volume rm retail-video-analytics_pulsar_data
-   docker-compose up -d
-   ```
-
-3. **Kiểm tra topic đã được tạo**: Chờ `pulsar-init` hoàn tất (xem log: `[init] Done`)
 ```
 
-## 🚀 Bước 3: Đồng bộ lớp Bronze vào Iceberg
+**Lưu ý:** Producer sử dụng JSON schema (không phải Avro) để tương thích với Flink SQL JSON deserializer.
 
-### 3.1 Build image Flink đã kèm connector
+---
 
-Thay vì tải JAR thủ công, hãy build image `infrastructure/flink/Dockerfile`:
+## �️ Bước 3: Đồng bộ lớp Bronze vào Iceberg
+
+### 3.1 Build Flink image với connectors
 
 ```bash
 docker compose build flink-jobmanager flink-taskmanager
 ```
 
-Dockerfile sẽ tự động tải:
+**Connectors tự động tải:**
 - `flink-connector-pulsar-4.1.0-1.18.jar`
 - `iceberg-flink-runtime-1.18-1.5.0.jar`
 - `iceberg-aws-bundle-1.5.0.jar`
 - `flink-shaded-hadoop-2-uber-2.8.3-10.0.jar`
 
-### 3.2 Khởi động lại cụm Flink
+### 3.2 Khởi động Flink cluster
 
 ```bash
 docker compose up -d flink-jobmanager flink-taskmanager
 ```
 
-### 3.3 Chạy job Bronze
-
-File `bronze_ingest.sql` đã được copy vào image tại `/opt/flink/usrlib/`. Thực thi job:
+### 3.3 Submit Bronze ingestion job
 
 ```bash
-MSYS_NO_PATHCONV=1 docker exec -it flink-jobmanager bash -lc "/opt/flink/bin/sql-client.sh -f /opt/flink/usrlib/bronze_ingest.sql"
+MSYS_NO_PATHCONV=1 docker exec -it flink-jobmanager bash -lc \
+  "/opt/flink/bin/sql-client.sh -f /opt/flink/usrlib/bronze_ingest.sql"
 ```
 
-### 3.4 Kiểm tra nhanh
-
-```bash
-
-docker exec minio mc alias set local http://localhost:9000 minioadmin minioadmin123
-# Xem bucket trong MinIO
-docker exec minio mc ls local/warehouse
-
-# Kiểm tra trạng thái job Flink
-curl http://localhost:8081/jobs
-```
-
-> Job `bronze_ingest.sql` tạo catalog `lakehouse` (Iceberg REST + S3FileIO) và ghi payload NDJSON vào bảng `rva.bronze_raw`. Đây là lớp Bronze nền tảng cho các bước Silver/Gold.
+**Job sẽ:**
+- Tạo Iceberg catalog `lakehouse` kết nối với MinIO
+- Tạo database `rva` và table `bronze_raw`
+- Consume messages từ Pulsar topic (JSON format)
+- Parse JSON payload để extract `camera_id`, `store_id`
+- Ghi dữ liệu vào Iceberg table (Parquet format)
 
 ---
 
+## ✅ Bước 4: Kiểm tra kết quả
 
+### Kiểm tra dữ liệu trong MinIO
 
-# Chờ 10 giây và retry
-sleep 10
-MSYS_NO_PATHCONV=1 docker exec -it flink-jobmanager bash -lc "/opt/flink/bin/sql-client.sh -f /opt/flink/usrlib/bronze_ingest.sql"
+```bash
+# Setup alias
+docker exec minio mc alias set local http://localhost:9000 minioadmin minioadmin123
+
+# Liệt kê dữ liệu Bronze
+docker exec minio mc ls -r local/warehouse/rva/bronze_raw/data/
+
+# Kiểm tra dung lượng
+docker exec minio mc du local/warehouse/rva/
 ```
 
-### **Lỗi: NoSuchMethodError tại PulsarClientImpl.getPartitionedTopicMetadata**
+### Kiểm tra Flink jobs
 
-**Nguyên nhân:** `flink-connector-pulsar-4.1.0-1.18` được build kèm `pulsar-client` 3.0.0 (chữ ký `getPartitionedTopicMetadata(String)`). Nếu bundle Pulsar 4.x vào Flink classpath thì method đổi chữ ký, dẫn tới `NoSuchMethodError` khi enumerate partition.
+```bash
+# Xem danh sách jobs
+curl http://localhost:8081/jobs
 
-**Fix:**
-- Pin `PULSAR_CLIENT_VERSION=3.0.0` (cùng `pulsar-client-api`, `pulsar-client-admin-api`, `pulsar-common` 3.0.0) trong `infrastructure/flink/Dockerfile`.
-- Gỡ bỏ mọi JAR Pulsar 4.x khỏi `/opt/flink/lib` trước khi restart.
-- Rebuild image rồi chạy `docker compose up -d --force-recreate flink-jobmanager flink-taskmanager`, sau đó submit lại `bronze_ingest.sql`.
+# Xem chi tiết job
+curl http://localhost:8081/jobs/<job-id>
+```
 
-### **Lỗi: NoClassDefFoundError: io.opentelemetry.api.incubator.metrics.ExtendedLongCounterBuilder**
+### Kiểm tra Pulsar topic
 
-**Nguyên nhân:** Pulsar client 4.x bật OpenTelemetry histogram và tham chiếu `opentelemetry-api-incubator`. Nếu thiếu JAR incubator (hoặc sai version), Flink không tạo được consumer và không đọc topic.
+```bash
+# Xem schema
+MSYS_NO_PATHCONV=1 docker exec pulsar-broker \
+  /pulsar/bin/pulsar-admin schemas get persistent://retail/metadata/events
 
-**Fix:**
-- Tránh dùng Pulsar 4.x với connector 4.1.0-1.18; stick 3.0.0 để bỏ phụ thuộc incubator.
-- Nếu buộc phải thử 4.x, copy thêm `opentelemetry-api-incubator-1.45.0-alpha.jar` vào `/opt/flink/lib` rồi restart cả JobManager/TaskManager.
+# Xem stats
+MSYS_NO_PATHCONV=1 docker exec pulsar-broker \
+  /pulsar/bin/pulsar-admin topics partitioned-stats persistent://retail/metadata/events
+```
 
+---
+
+## 🎯 Kết quả mong đợi
+
+✅ **288 messages** từ AI pipeline → Pulsar (JSON format)  
+✅ **3+ Parquet files** trong MinIO tại `warehouse/rva/bronze_raw/data/store_id=store_01/`  
+✅ **Flink job** chạy thành công và consume hết messages  
+✅ **Data partitioned** theo `store_id`
+
+---
+
+## 📊 Data Flow Architecture
+
+```
+Video Input 
+  → AI Pipeline (YOLOv8 + DeepSort)
+    → NDJSON metadata
+      → Pulsar Producer (JSON schema)
+        → Pulsar Topic (persistent://retail/metadata/events)
+          → Flink Streaming Job (JSON deserialization)
+            → Iceberg Bronze Table (Parquet on MinIO)
+```

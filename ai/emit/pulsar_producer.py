@@ -5,13 +5,13 @@ from typing import Any, Dict, Iterable, Optional, Tuple
 
 import pulsar
 from pulsar import Client, Producer
-from pulsar.schema import AvroSchema, Long, Record, String
+from pulsar.schema import JsonSchema, Long, Record, String
 
 from .json_emitter import DetectionDict, JsonEmitter
 
 
 class RetailDetection(Record):
-    """Avro schema khớp với `metadata-json-schema.json`."""
+    """JSON schema khớp với `metadata-json-schema.json`."""
 
     schema_version = String(required=True)
     pipeline_run_id = String(required=True)
@@ -37,7 +37,7 @@ class PulsarProducer:
         producer_kwargs.setdefault("batching_enabled", False)
 
         self._client: Client = Client(service_url, **client_kwargs)
-        schema = AvroSchema(RetailDetection)
+        schema = JsonSchema(RetailDetection)
         self._producer: Producer = self._client.create_producer(
             topic,
             schema=schema,

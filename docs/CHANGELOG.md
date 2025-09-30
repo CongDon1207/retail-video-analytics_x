@@ -1,14 +1,18 @@
 ﻿# CHANGELOG
 
-Ghi láº¡i táº¥t cáº£ cÃ¡c cÃ´ng viá»‡c Ä'Ã£ hoÃ n thÃ nh trong dá»± Ã¡n Retail Video Analytics.
+Ghi lại tất cả các công việc đã hoàn thành trong dự án Retail Video Analytics.
 
 ## 2025-09-30
+
+### End-to-End Pipeline Completion
+- **2025-09-30: Fix Avro deserialization issue by migrating to JSON schema at ai/emit/pulsar_producer.py & flink-jobs/bronze_ingest.sql - Resolve ArrayIndexOutOfBoundsException between Python Pulsar client and Flink Avro deserializer; 288 messages successfully written to Bronze layer (completed)**
+- **2025-09-30: Disable Flink checkpointing at infrastructure/flink/conf/flink-conf.yaml - Workaround Java reflection error with Arrays$ArrayList; allows Bronze job to complete successfully (completed)**
+- **2025-09-30: Verify end-to-end data flow at warehouse/rva/bronze_raw/data/ - 3 Parquet files (67KiB) written to MinIO, partitioned by store_id; full pipeline validated (completed)**
+- **2025-09-30: Update documentation at docs/data-flow-guide.md, docs/HANDOFF.md, docs/CHANGELOG.md - Simplify workflow guide, remove outdated troubleshooting, document current working state (completed)**
 
 ### Pulsar Version Upgrade & Topic Policies Fix
 - **2025-09-30: Upgrade Pulsar from 3.2.0 to 3.3.2 at docker-compose.yml - Improve stability and security patches while maintaining Flink connector compatibility (completed)**
 - **2025-09-30: Fix Topic Policies cache timeout at infrastructure/pulsar/conf/standalone.conf - Add systemTopicEnabled=true + topicLevelPoliciesEnabled=true to resolve producer TimeOut errors (completed)**
-
-## 2025-09-30
 
 ### Pulsar Client Compatibility
 - **2025-09-30: Pin Pulsar client libs to 3.0.0 at infrastructure/flink/Dockerfile - Restore getPartitionedTopicMetadata signature required by Flink connector (completed)**

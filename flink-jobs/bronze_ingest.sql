@@ -31,29 +31,18 @@ WITH (
   'write.format.default' = 'parquet'
 );
 
--- Pulsar source (đọc metadata đúng chuẩn)
+-- Pulsar source: đọc JSON format
 CREATE TEMPORARY TABLE pulsar_source (
   schema_version STRING,
   pipeline_run_id STRING,
   frame_index BIGINT,
-  payload STRING,
-
-  -- Lấy toàn bộ message properties vào MAP
-  props MAP<STRING, STRING> METADATA FROM 'properties' VIRTUAL,
-
-  -- Rút key cụ thể từ props (computed columns: KHÔNG khai báo kiểu trước AS)
-  camera_id AS props['camera_id'],
-  store_id  AS props['store_id'],
-
-  -- Metadata thời gian: dùng tên key có dấu gạch dưới
-  event_time TIMESTAMP_LTZ(3) METADATA FROM 'event_time' VIRTUAL,
-  publish_ts TIMESTAMP_LTZ(3) METADATA FROM 'publish_time' VIRTUAL
+  payload STRING
 ) WITH (
   'connector' = 'pulsar',
   'topics' = 'persistent://retail/metadata/events',
   'service-url' = 'pulsar://pulsar-broker:6650',
   'source.start.message-id' = 'earliest',
-  'format' = 'avro'
+  'format' = 'json'
 );
 
 INSERT INTO rva.bronze_raw
@@ -62,7 +51,8 @@ SELECT
   pipeline_run_id,
   frame_index,
   payload,
-  COALESCE(camera_id, 'unknown') AS camera_id,
-  COALESCE(store_id,  'unknown') AS store_id,
-  COALESCE(event_time, publish_ts, CURRENT_TIMESTAMP) AS ingest_ts
+  -- Parse JSON từ payload string để lấy camera_id và store_id
+  COALESCE(JSON_VALUE(payload, '$.source.camera_id'), 'unknown') AS camera_id,
+  COALESCE(JSON_VALUE(payload, '$.source.store_id'), 'unknown') AS store_id,
+  CURRENT_TIMESTAMP AS ingest_ts
 FROM pulsar_source;
