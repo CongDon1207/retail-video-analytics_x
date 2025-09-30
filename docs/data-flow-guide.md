@@ -136,5 +136,20 @@ sleep 10
 MSYS_NO_PATHCONV=1 docker exec -it flink-jobmanager bash -lc "/opt/flink/bin/sql-client.sh -f /opt/flink/usrlib/bronze_ingest.sql"
 ```
 
+### **Lỗi: NoSuchMethodError tại PulsarClientImpl.getPartitionedTopicMetadata**
 
+**Nguyên nhân:** `flink-connector-pulsar-4.1.0-1.18` được build kèm `pulsar-client` 3.0.0 (chữ ký `getPartitionedTopicMetadata(String)`). Nếu bundle Pulsar 4.x vào Flink classpath thì method đổi chữ ký, dẫn tới `NoSuchMethodError` khi enumerate partition.
+
+**Fix:**
+- Pin `PULSAR_CLIENT_VERSION=3.0.0` (cùng `pulsar-client-api`, `pulsar-client-admin-api`, `pulsar-common` 3.0.0) trong `infrastructure/flink/Dockerfile`.
+- Gỡ bỏ mọi JAR Pulsar 4.x khỏi `/opt/flink/lib` trước khi restart.
+- Rebuild image rồi chạy `docker compose up -d --force-recreate flink-jobmanager flink-taskmanager`, sau đó submit lại `bronze_ingest.sql`.
+
+### **Lỗi: NoClassDefFoundError: io.opentelemetry.api.incubator.metrics.ExtendedLongCounterBuilder**
+
+**Nguyên nhân:** Pulsar client 4.x bật OpenTelemetry histogram và tham chiếu `opentelemetry-api-incubator`. Nếu thiếu JAR incubator (hoặc sai version), Flink không tạo được consumer và không đọc topic.
+
+**Fix:**
+- Tránh dùng Pulsar 4.x với connector 4.1.0-1.18; stick 3.0.0 để bỏ phụ thuộc incubator.
+- Nếu buộc phải thử 4.x, copy thêm `opentelemetry-api-incubator-1.45.0-alpha.jar` vào `/opt/flink/lib` rồi restart cả JobManager/TaskManager.
 

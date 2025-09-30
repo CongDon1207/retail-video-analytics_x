@@ -113,3 +113,11 @@ jobmanager.rpc.address=flink-jobmanager
 taskmanager.numberOfTaskSlots=4
 parallelism.default=2
 
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
