@@ -21,9 +21,131 @@ state.backend.type: filesystem
 state.checkpoints.dir: file:///opt/flink/state/checkpoints
 state.savepoints.dir: file:///opt/flink/state/savepoints
 
-execution.checkpointing.interval: 60s
-execution.checkpointing.min-pause: 30s
-execution.checkpointing.tolerable-failed-checkpoints: 3
+# Tạm tắt checkpointing để tránh Java reflection error
+# execution.checkpointing.interval: 60s
+# execution.checkpointing.min-pause: 30s
+# execution.checkpointing.tolerable-failed-checkpoints: 3
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+query.server.port: 6125
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
+
+jobmanager.rpc.address=flink-jobmanager
+taskmanager.numberOfTaskSlots=4
+parallelism.default=2
 
 jobmanager.rpc.address=flink-jobmanager
 taskmanager.numberOfTaskSlots=4
