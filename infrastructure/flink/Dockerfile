@@ -12,7 +12,8 @@ ARG JACKSON_VERSION=2.15.2
 ARG ICEBERG_VERSION=1.5.0
 ARG ICEBERG_AWS_BUNDLE_VERSION=1.5.0
 ARG HADOOP_SHADED_VERSION=2.8.3-10.0
-ARG OPENTELEMETRY_VERSION=1.32.0
+ARG OPENTELEMETRY_VERSION=1.45.0
+ARG OPENTELEMETRY_INCUBATOR_VERSION=1.45.0-alpha
 
 ENV FLINK_LIB_DIR=/opt/flink/lib \
     FLINK_USR_LIB_DIR=/opt/flink/usrlib
@@ -20,8 +21,10 @@ ENV FLINK_LIB_DIR=/opt/flink/lib \
 RUN set -eux; \
     curl -fsSL "https://repo1.maven.org/maven2/org/apache/flink/flink-connector-pulsar/${PULSAR_CONNECTOR_VERSION}/flink-connector-pulsar-${PULSAR_CONNECTOR_VERSION}.jar" \
       -o "$FLINK_LIB_DIR/flink-connector-pulsar-${PULSAR_CONNECTOR_VERSION}.jar"; \
-    curl -fsSL "https://repo1.maven.org/maven2/org/apache/pulsar/pulsar-client-all/${PULSAR_CLIENT_VERSION}/pulsar-client-all-${PULSAR_CLIENT_VERSION}.jar" \
-      -o "$FLINK_LIB_DIR/pulsar-client-all-${PULSAR_CLIENT_VERSION}.jar"; \
+    curl -fsSL "https://repo1.maven.org/maven2/org/apache/pulsar/pulsar-client/${PULSAR_CLIENT_VERSION}/pulsar-client-${PULSAR_CLIENT_VERSION}.jar" \
+      -o "$FLINK_LIB_DIR/pulsar-client-${PULSAR_CLIENT_VERSION}.jar"; \
+    curl -fsSL "https://repo1.maven.org/maven2/org/apache/pulsar/pulsar-client-original/${PULSAR_CLIENT_VERSION}/pulsar-client-original-${PULSAR_CLIENT_VERSION}.jar" \
+      -o "$FLINK_LIB_DIR/pulsar-client-original-${PULSAR_CLIENT_VERSION}.jar"; \
     curl -fsSL "https://repo1.maven.org/maven2/org/apache/pulsar/pulsar-client-api/${PULSAR_CLIENT_API_VERSION}/pulsar-client-api-${PULSAR_CLIENT_API_VERSION}.jar" \
       -o "$FLINK_LIB_DIR/pulsar-client-api-${PULSAR_CLIENT_API_VERSION}.jar"; \
     curl -fsSL "https://repo1.maven.org/maven2/org/apache/pulsar/pulsar-client-admin-api/${PULSAR_CLIENT_ADMIN_API_VERSION}/pulsar-client-admin-api-${PULSAR_CLIENT_ADMIN_API_VERSION}.jar" \
@@ -46,6 +49,8 @@ RUN set -eux; \
       -o "$FLINK_LIB_DIR/flink-shaded-hadoop-2-uber-${HADOOP_SHADED_VERSION}.jar"; \
     curl -fsSL "https://repo1.maven.org/maven2/io/opentelemetry/opentelemetry-api/${OPENTELEMETRY_VERSION}/opentelemetry-api-${OPENTELEMETRY_VERSION}.jar" \
       -o "$FLINK_LIB_DIR/opentelemetry-api-${OPENTELEMETRY_VERSION}.jar"; \
+    curl -fsSL "https://repo1.maven.org/maven2/io/opentelemetry/opentelemetry-api-incubator/${OPENTELEMETRY_INCUBATOR_VERSION}/opentelemetry-api-incubator-${OPENTELEMETRY_INCUBATOR_VERSION}.jar" \
+      -o "$FLINK_LIB_DIR/opentelemetry-api-incubator-${OPENTELEMETRY_INCUBATOR_VERSION}.jar"; \
     curl -fsSL "https://repo1.maven.org/maven2/io/opentelemetry/opentelemetry-context/${OPENTELEMETRY_VERSION}/opentelemetry-context-${OPENTELEMETRY_VERSION}.jar" \
       -o "$FLINK_LIB_DIR/opentelemetry-context-${OPENTELEMETRY_VERSION}.jar"; \
     mkdir -p /opt/flink/state/checkpoints /opt/flink/state/savepoints; \
@@ -53,4 +58,5 @@ RUN set -eux; \
 COPY flink-jobs/ "$FLINK_USR_LIB_DIR/"
 
 EXPOSE 6123 8081
+
 

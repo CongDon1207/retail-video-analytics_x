@@ -1,6 +1,22 @@
 ﻿# CHANGELOG
 
+Ghi láº¡i táº¥t cáº£ cÃ¡c cÃ´ng viá»‡c Ä'Ã£ hoÃ n thÃ nh trong dá»± Ã¡n Retail Video Analytics.
+
+## 2025-09-30
+
+### Pulsar Version Upgrade & Topic Policies Fix
+- **2025-09-30: Upgrade Pulsar from 3.2.0 to 3.3.2 at docker-compose.yml - Improve stability and security patches while maintaining Flink connector compatibility (completed)**
+- **2025-09-30: Fix Topic Policies cache timeout at infrastructure/pulsar/conf/standalone.conf - Add systemTopicEnabled=true + topicLevelPoliciesEnabled=true to resolve producer TimeOut errors (completed)**
+
+## 2025-09-29NGELOG
+
 Ghi láº¡i táº¥t cáº£ cÃ¡c cÃ´ng viá»‡c Ä‘Ã£ hoÃ n thÃ nh trong dá»± Ã¡n Retail Video Analytics.
+
+## 2025-09-29
+
+### Flink Pulsar Dependency Alignment
+- **2025-09-29: Bundle OpenTelemetry API + incubator jars at infrastructure/flink/Dockerfile - Fix ClassNotFoundException for Pulsar consumer metrics (completed)**
+- **2025-09-29: Replace Pulsar all-in-one jar with client + original pair at infrastructure/flink/Dockerfile - Resolve NoSuchMethodError for bronze SQL job (completed)**
 
 ## 2025-09-28
 

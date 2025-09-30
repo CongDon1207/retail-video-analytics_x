@@ -2,7 +2,7 @@
 
 ## Current Status (Trạng thái hiện tại)
 **Branch**: `don`  
-**Đang làm**: Iceberg lakehouse integration với MinIO; debug Flink bronze ingestion bị `NoSuchMethodError` từ Pulsar client  
+**Đang làm**: Iceberg lakehouse integration với MinIO; chuẩn bị rebuild Flink image sau khi thay Pulsar client jars + OpenTelemetry incubator để xác minh job bronze  
 **Lý do**: Infrastructure stack complete (Pulsar + Flink + MinIO + Iceberg REST), nhưng job streaming đang restart liên tục do xung đột version Pulsar → chưa ghi được dữ liệu xuống Iceberg
 **Mới cập nhật**: Pulsar metadata producer & demo script khả dụng; Flink image đã bundle thêm Avro + Jackson và fix checkpoint directory; đã ghi chú blocker Pulsar client trong data-flow guide
 
@@ -10,7 +10,7 @@
 
 ### High Priority
 1. **Iceberg-MinIO Integration Verification**
-   - Unblock lỗi `NoSuchMethodError` để job Flink chạy ổn định
+   - Rebuild Flink image với cặp Pulsar client mới + OpenTelemetry incubator và xác minh job bronze hết `NoSuchMethodError`
    - Confirm bảng bronze nhận dữ liệu sau job Flink
    - Kiểm tra lại cấu hình region cho REST catalog nếu còn lỗi
    - Truy vấn dữ liệu bằng Iceberg REST/Trino (khi sẵn sàng)
@@ -21,7 +21,7 @@
    - Test full flow: video input → AI processing → Pulsar topic
    
 3. **Flink Jobs Development**
-   - Bronze job submit thành công nhưng đang `RESTARTING` do thiếu method trong Pulsar client
+   - Bronze job chờ retest sau khi cập nhật Pulsar client + OpenTelemetry jars; trước đó `RESTARTING` vì thiếu method mới
    - Sau khi fix dependency, bổ sung monitoring & mở rộng logic xử lý (nếu cần)
 
 ### Medium Priority  
@@ -51,7 +51,7 @@
 - **MinIO Setup**: ✅ Credentials configured, warehouse bucket created, healthcheck passing
 - **Pulsar Setup**: ✅ Broker healthy, admin API accessible on port 8082
 - **Flink Setup**: ✅ JobManager + TaskManager healthy, Web UI on port 8081
-- **Flink SQL Job**: ⚠️ Submit thành công nhưng runtime `RESTARTING` vì `NoSuchMethodError` tại `PulsarClientImpl.getPartitionedTopicMetadata`; cần đồng bộ lại bộ JAR Pulsar
+- **Flink SQL Job**: ⚠️ Chưa retest sau khi thay Pulsar client + OpenTelemetry jars; cần rebuild image rồi chạy lại `bronze_ingest.sql` để xác nhận hết `NoSuchMethodError`
 - **Iceberg REST**: ⚠️ Service running, namespace created, table creation failing (AWS region issue)
 - **Cross-Platform**: ✅ PowerShell commands documented, .gitattributes configured
 - **Pulsar Producer Demo**: ✅ Python & Docker workflow gửi metadata vào topic persistent://retail/metadata/events

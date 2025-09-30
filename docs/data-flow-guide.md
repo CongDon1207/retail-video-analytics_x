@@ -62,6 +62,25 @@ docker run --rm --network=retail-video-analytics_retail-net \
   retail/pulsar-producer \
   --service-url pulsar://pulsar-broker:6650 \
   --topic persistent://retail/metadata/events
+
+### **⚠️ Troubleshooting Producer Timeout**
+
+Nếu gặp lỗi `_pulsar.Timeout: Pulsar error: TimeOut` hoặc `TopicPoliciesCacheNotInitException`:
+
+1. **Kiểm tra cấu hình Topic Policies** đã được bật trong `infrastructure/pulsar/conf/standalone.conf`:
+   ```properties
+   systemTopicEnabled=true
+   topicLevelPoliciesEnabled=true
+   ```
+
+2. **Reset Pulsar data nếu có lỗi schema ledger**:
+   ```bash
+   docker-compose down
+   docker volume rm retail-video-analytics_pulsar_data
+   docker-compose up -d
+   ```
+
+3. **Kiểm tra topic đã được tạo**: Chờ `pulsar-init` hoàn tất (xem log: `[init] Done`)
 ```
 
 ## 🚀 Bước 3: Đồng bộ lớp Bronze vào Iceberg
@@ -110,38 +129,12 @@ curl http://localhost:8081/jobs
 
 ---
 
-## ⚠️ Troubleshooting
 
-### **Lỗi: ClassNotFoundException: org.apache.pulsar.client.api.SubscriptionType**
-
-**Nguyên nhân:** Pulsar connector thiếu client API JARs trong classpath.
-
-**Fix nhanh:**
-```bash
-# Tải pulsar-client JARs vào runtime
-docker exec flink-jobmanager curl -L -o /opt/flink/lib/pulsar-client-3.2.0.jar \
-  https://repo1.maven.org/maven2/org/apache/pulsar/pulsar-client/3.2.0/pulsar-client-3.2.0.jar
-
-docker exec flink-jobmanager curl -L -o /opt/flink/lib/pulsar-client-api-3.2.0.jar \
-  https://repo1.maven.org/maven2/org/apache/pulsar/pulsar-client-api/3.2.0/pulsar-client-api-3.2.0.jar
-
-# Restart services
-docker compose restart flink-jobmanager flink-taskmanager
 
 # Chờ 10 giây và retry
 sleep 10
 MSYS_NO_PATHCONV=1 docker exec -it flink-jobmanager bash -lc "/opt/flink/bin/sql-client.sh -f /opt/flink/usrlib/bronze_ingest.sql"
 ```
 
-**Fix vĩnh viễn:** Rebuild Dockerfile với đầy đủ dependencies (đang được fix trong version tiếp theo).
 
-### **Lỗi: NoSuchMethodError tại PulsarClientImpl.getPartitionedTopicMetadata**
 
-**Triệu chứng:** Job `bronze_ingest.sql` liên tục `RESTARTING`, log hiển thị `java.lang.NoSuchMethodError: 'java.util.concurrent.CompletableFuture org.apache.pulsar.client.impl.PulsarClientImpl.getPartitionedTopicMetadata(java.lang.String)'`.
-
-**Nguyên nhân:** Phiên bản `flink-connector-pulsar-4.1.0-1.18` yêu cầu `pulsar-client` export method mới (histogram metrics). JAR hiện tại (`pulsar-client-all-4.1.0.jar`) thiếu method vì bị shade/strip; cần đồng bộ đúng cặp `pulsar-client`/`pulsar-client-original` với connector.
-
-**Hướng xử lý tạm thời:**
-- Thêm `pulsar-client-original-4.1.0.jar` vào `/opt/flink/lib` hoặc chuyển sang bộ JAR `pulsar-client-4.1.0.jar` + `pulsar-client-admin-4.1.0.jar` thay vì `client-all`.
-- Nếu vẫn lỗi, cân nhắc hạ connector xuống 4.0.x tương thích với JAR hiện có.
-- Sau khi thay JAR, rebuild image `infrastructure/flink/Dockerfile` và `docker compose up -d --force-recreate flink-jobmanager flink-taskmanager` trước khi re-submit job.
