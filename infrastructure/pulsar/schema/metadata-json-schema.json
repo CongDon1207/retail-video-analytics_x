@@ -1,4 +1,4 @@
 {
-  "type": "AVRO",
+  "type": "JSON",
   "schema": "{\n  \"type\": \"record\",\n  \"name\": \"RetailDetection\",\n  \"fields\": [\n    {\n      \"name\": \"schema_version\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"pipeline_run_id\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"frame_index\",\n      \"type\": \"long\"\n    },\n    {\n      \"name\": \"payload\",\n      \"type\": \"string\"\n    }\n  ]\n}"
 }
