@@ -98,6 +98,7 @@ docker exec minio mc alias set local http://localhost:9000 minioadmin minioadmin
 
 # Liệt kê dữ liệu Bronze
 docker exec minio mc ls -r local/warehouse/rva/bronze_raw/data/
+docker exec minio mc ls -r local/warehouse/rva/bronze_raw/metadata/
 
 # Kiểm tra dung lượng
 docker exec minio mc du local/warehouse/rva/
@@ -125,16 +126,6 @@ MSYS_NO_PATHCONV=1 docker exec pulsar-broker \
   /pulsar/bin/pulsar-admin topics partitioned-stats persistent://retail/metadata/events
 ```
 
----
-
-## 🎯 Kết quả mong đợi
-
-✅ **288 messages** từ AI pipeline → Pulsar (JSON format)  
-✅ **3+ Parquet files** trong MinIO tại `warehouse/rva/bronze_raw/data/store_id=store_01/`  
-✅ **Flink job** chạy thành công và consume hết messages  
-✅ **Data partitioned** theo `store_id`
-
----
 
 ## 📊 Data Flow Architecture
 
