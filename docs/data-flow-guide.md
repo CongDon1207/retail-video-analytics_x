@@ -10,22 +10,8 @@ Hướng dẫn chạy end-to-end pipeline từ video input → AI detection → 
 
 Chạy AI detection trên video để tạo ra file metadata `detections_output.ndjson`.
 
-### **Video mẫu 1 - Surveillance camera:**
 ```bash
-# Chạy AI pipeline với video surveillance
-py -3.12 -m ai.ingest \
-  --backend cv \
-  --src "data/videos/Midtown corner store surveillance video 11-25-18.mp4" \
-  --yolo 1 \
-  --track 1 \
-  --display 1 \
-  --emit detection \
-  --out detections_output.ndjson
-```
-
-### **Video mẫu 2 - General video:**
-```bash
-# Chạy AI pipeline với video thông thường
+# Chạy AI pipeline với video
 py -3.12 -m ai.ingest \
   --backend cv \
   --src "data/videos/video.mp4" \
@@ -36,12 +22,12 @@ py -3.12 -m ai.ingest \
   --out detections_output.ndjson
 ```
 
-### **Giải thích các tham số:**
+**Tham số:**
 - `--backend cv`: Dùng OpenCV làm video backend
 - `--src`: Đường dẫn tới video input
 - `--yolo 1`: Bật YOLOv8 detection
 - `--track 1`: Bật DeepSort tracking
-- `--display 1`: Hiển thị video realtime (có thể tắt với `0`)
+- `--display 1`: Hiển thị video realtime (hoặc `0` để tắt)
 - `--emit detection`: Xuất kết quả detection
 - `--out`: File output NDJSON chứa metadata
 
@@ -49,99 +35,106 @@ py -3.12 -m ai.ingest \
 
 ## 🚀 Bước 2: Gửi metadata vào Pulsar
 
-### **Phương pháp 1: Chạy Producer bằng Docker (Khuyến nghị)**
-
-Build Docker image và chạy producer:
+### Build và chạy Producer
 
 ```bash
 # Build producer image
 docker build -f infrastructure/pulsar/producer.Dockerfile -t retail/pulsar-producer .
 
-# Chạy producer trong Docker network
+# Chạy producer
 docker run --rm --network=retail-video-analytics_retail-net \
   retail/pulsar-producer \
   --service-url pulsar://pulsar-broker:6650 \
   --topic persistent://retail/metadata/events
 ```
 
-## 🚀 Bước 3: Đồng bộ lớp Bronze vào Iceberg
+**Lưu ý:** Producer sử dụng JSON schema (không phải Avro) để tương thích với Flink SQL JSON deserializer.
 
-### 3.1 Build image Flink đã kèm connector
+---
 
-Thay vì tải JAR thủ công, hãy build image `infrastructure/flink/Dockerfile`:
+## �️ Bước 3: Đồng bộ lớp Bronze vào Iceberg
+
+### 3.1 Build Flink image với connectors
 
 ```bash
 docker compose build flink-jobmanager flink-taskmanager
 ```
 
-Dockerfile sẽ tự động tải:
+**Connectors tự động tải:**
 - `flink-connector-pulsar-4.1.0-1.18.jar`
 - `iceberg-flink-runtime-1.18-1.5.0.jar`
 - `iceberg-aws-bundle-1.5.0.jar`
 - `flink-shaded-hadoop-2-uber-2.8.3-10.0.jar`
 
-### 3.2 Khởi động lại cụm Flink
+### 3.2 Khởi động Flink cluster
 
 ```bash
 docker compose up -d flink-jobmanager flink-taskmanager
 ```
 
-### 3.3 Chạy job Bronze
-
-File `bronze_ingest.sql` đã được copy vào image tại `/opt/flink/usrlib/`. Thực thi job:
+### 3.3 Submit Bronze ingestion job
 
 ```bash
-MSYS_NO_PATHCONV=1 docker exec -it flink-jobmanager bash -lc "/opt/flink/bin/sql-client.sh -f /opt/flink/usrlib/bronze_ingest.sql"
+MSYS_NO_PATHCONV=1 docker exec -it flink-jobmanager bash -lc \
+  "/opt/flink/bin/sql-client.sh -f /opt/flink/usrlib/bronze_ingest.sql"
 ```
 
-### 3.4 Kiểm tra nhanh
-
-```bash
-
-docker exec minio mc alias set local http://localhost:9000 minioadmin minioadmin123
-# Xem bucket trong MinIO
-docker exec minio mc ls local/warehouse
-
-# Kiểm tra trạng thái job Flink
-curl http://localhost:8081/jobs
-```
-
-> Job `bronze_ingest.sql` tạo catalog `lakehouse` (Iceberg REST + S3FileIO) và ghi payload NDJSON vào bảng `rva.bronze_raw`. Đây là lớp Bronze nền tảng cho các bước Silver/Gold.
+**Job sẽ:**
+- Tạo Iceberg catalog `lakehouse` kết nối với MinIO
+- Tạo database `rva` và table `bronze_raw`
+- Consume messages từ Pulsar topic (JSON format)
+- Parse JSON payload để extract `camera_id`, `store_id`
+- Ghi dữ liệu vào Iceberg table (Parquet format)
 
 ---
 
-## ⚠️ Troubleshooting
+## ✅ Bước 4: Kiểm tra kết quả
 
-### **Lỗi: ClassNotFoundException: org.apache.pulsar.client.api.SubscriptionType**
+### Kiểm tra dữ liệu trong MinIO
 
-**Nguyên nhân:** Pulsar connector thiếu client API JARs trong classpath.
-
-**Fix nhanh:**
 ```bash
-# Tải pulsar-client JARs vào runtime
-docker exec flink-jobmanager curl -L -o /opt/flink/lib/pulsar-client-3.2.0.jar \
-  https://repo1.maven.org/maven2/org/apache/pulsar/pulsar-client/3.2.0/pulsar-client-3.2.0.jar
+# Setup alias
+docker exec minio mc alias set local http://localhost:9000 minioadmin minioadmin123
 
-docker exec flink-jobmanager curl -L -o /opt/flink/lib/pulsar-client-api-3.2.0.jar \
-  https://repo1.maven.org/maven2/org/apache/pulsar/pulsar-client-api/3.2.0/pulsar-client-api-3.2.0.jar
+# Liệt kê dữ liệu Bronze
+docker exec minio mc ls -r local/warehouse/rva/bronze_raw/data/
+docker exec minio mc ls -r local/warehouse/rva/bronze_raw/metadata/
 
-# Restart services
-docker compose restart flink-jobmanager flink-taskmanager
-
-# Chờ 10 giây và retry
-sleep 10
-MSYS_NO_PATHCONV=1 docker exec -it flink-jobmanager bash -lc "/opt/flink/bin/sql-client.sh -f /opt/flink/usrlib/bronze_ingest.sql"
+# Kiểm tra dung lượng
+docker exec minio mc du local/warehouse/rva/
 ```
 
-**Fix vĩnh viễn:** Rebuild Dockerfile với đầy đủ dependencies (đang được fix trong version tiếp theo).
+### Kiểm tra Flink jobs
 
-### **Lỗi: NoSuchMethodError tại PulsarClientImpl.getPartitionedTopicMetadata**
+```bash
+# Xem danh sách jobs
+curl http://localhost:8081/jobs
 
-**Triệu chứng:** Job `bronze_ingest.sql` liên tục `RESTARTING`, log hiển thị `java.lang.NoSuchMethodError: 'java.util.concurrent.CompletableFuture org.apache.pulsar.client.impl.PulsarClientImpl.getPartitionedTopicMetadata(java.lang.String)'`.
+# Xem chi tiết job
+curl http://localhost:8081/jobs/<job-id>
+```
 
-**Nguyên nhân:** Phiên bản `flink-connector-pulsar-4.1.0-1.18` yêu cầu `pulsar-client` export method mới (histogram metrics). JAR hiện tại (`pulsar-client-all-4.1.0.jar`) thiếu method vì bị shade/strip; cần đồng bộ đúng cặp `pulsar-client`/`pulsar-client-original` với connector.
+### Kiểm tra Pulsar topic
 
-**Hướng xử lý tạm thời:**
-- Thêm `pulsar-client-original-4.1.0.jar` vào `/opt/flink/lib` hoặc chuyển sang bộ JAR `pulsar-client-4.1.0.jar` + `pulsar-client-admin-4.1.0.jar` thay vì `client-all`.
-- Nếu vẫn lỗi, cân nhắc hạ connector xuống 4.0.x tương thích với JAR hiện có.
-- Sau khi thay JAR, rebuild image `infrastructure/flink/Dockerfile` và `docker compose up -d --force-recreate flink-jobmanager flink-taskmanager` trước khi re-submit job.
+```bash
+# Xem schema
+MSYS_NO_PATHCONV=1 docker exec pulsar-broker \
+  /pulsar/bin/pulsar-admin schemas get persistent://retail/metadata/events
+
+# Xem stats
+MSYS_NO_PATHCONV=1 docker exec pulsar-broker \
+  /pulsar/bin/pulsar-admin topics partitioned-stats persistent://retail/metadata/events
+```
+
+
+## 📊 Data Flow Architecture
+
+```
+Video Input 
+  → AI Pipeline (YOLOv8 + DeepSort)
+    → NDJSON metadata
+      → Pulsar Producer (JSON schema)
+        → Pulsar Topic (persistent://retail/metadata/events)
+          → Flink Streaming Job (JSON deserialization)
+            → Iceberg Bronze Table (Parquet on MinIO)
+```
