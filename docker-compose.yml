@@ -52,9 +52,9 @@ services:
       - ./infrastructure/flink/conf:/opt/flink/conf
       - flink_state:/opt/flink/state
     environment:
-      AWS_REGION: ${S3_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_REGION: ${S3_REGION}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
       LOG4J_CONFIGURATION_FILE: /opt/flink/conf/log4j2.properties
       
@@ -75,9 +75,9 @@ services:
       - ./infrastructure/flink/conf:/opt/flink/conf
       - flink_state:/opt/flink/state
     environment:
-      AWS_REGION: ${S3_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_REGION: ${S3_REGION}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
       LOG4J_CONFIGURATION_FILE: /opt/flink/conf/log4j2.properties
     
@@ -91,8 +91,8 @@ services:
       - "9001:9001"   # MinIO Console
     environment:
       # Provide these via .env file or CI secrets for production
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
@@ -115,10 +115,10 @@ services:
         condition: service_healthy
     entrypoint: ["/bin/bash", "/scripts/init.sh"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
-      MINIO_SERVER_URL: http://minio:9000
-      ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE:-s3a://warehouse}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_SERVER_URL: ${MINIO_SERVER_URL}
+      ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE}
       MINIO_ADDITIONAL_BUCKETS: ${MINIO_ADDITIONAL_BUCKETS:-}
     volumes:
       - ./infrastructure/minio/scripts/init.sh:/scripts/init.sh:ro
@@ -132,16 +132,16 @@ services:
     ports:
       - "8181:8181"
     environment:
-      AWS_REGION: ${S3_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_REGION: ${S3_REGION}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       CATALOG_WAREHOUSE: ${ICEBERG_WAREHOUSE}
       CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
       CATALOG_S3_ENDPOINT: ${S3_ENDPOINT}
       CATALOG_S3_ACCESS__KEY__ID: ${MINIO_ROOT_USER}
       CATALOG_S3_SECRET__ACCESS__KEY: ${MINIO_ROOT_PASSWORD}
       CATALOG_S3_PATH__STYLE__ACCESS: "true"
-      CATALOG_S3_REGION: ${S3_REGION:-us-east-1}
+      CATALOG_S3_REGION: ${S3_REGION}
     depends_on:
       - minio
     restart: unless-stopped
@@ -157,12 +157,12 @@ services:
       - ./infrastructure/trino/etc:/etc/trino
       - trino_data:/data/trino
     environment:
-      ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE:-s3a://warehouse}
-      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
-      S3_PATH_STYLE: ${S3_PATH_STYLE:-true}
-      S3_REGION: ${S3_REGION:-us-east-1}
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
-      S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin123}
+      ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_PATH_STYLE: ${S3_PATH_STYLE}
+      S3_REGION: ${S3_REGION}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
     depends_on:
       - iceberg-rest
     restart: unless-stopped

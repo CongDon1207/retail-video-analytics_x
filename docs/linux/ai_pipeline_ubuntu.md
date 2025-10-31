@@ -17,6 +17,7 @@
 cd ~/project/retail-video-analytics
 python3 -m venv .venv
 source .venv/bin/activate
+export PYTHONPATH="$PWD"    # đảm bảo import được package `ai`
 pip install --upgrade pip wheel setuptools
 pip install ultralytics opencv-python deep-sort-realtime
 ```
@@ -53,7 +54,8 @@ python -m ai.ingest \
 
 ## 6. Gửi metadata lên Pulsar (tùy chọn)
 ```bash
-python scripts/demo_send_to_pulsar.py \
+# Luôn chạy từ thư mục gốc của project
+python -m scripts.demo_send_to_pulsar \
   --ndjson detections_output.ndjson \
   --service-url pulsar://localhost:6650 \
   --topic persistent://retail/metadata/events
@@ -62,4 +64,5 @@ python scripts/demo_send_to_pulsar.py \
 ## 7. Lưu ý
 - Nhấn `Ctrl+C` để dừng pipeline; chạy `deactivate` để thoát virtualenv.
 - `--classes person,car` giúp giới hạn lớp cần detect.
+- Mỗi lần chạy mới, file `detections_output.ndjson` sẽ được ghi đè; nếu muốn lưu lịch sử, đổi đường dẫn `--out`.
 - Đảm bảo các service Pulsar/MinIO/Flink đã chạy nếu tiếp tục pipeline downstream.

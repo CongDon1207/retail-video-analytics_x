@@ -5,7 +5,7 @@
 > Monitoring: **Prometheus + Alertmanager (+ Telegram) + Grafana**
 > Orchestration (optional): **Airflow** cho maintenance/batch.
 
-![architecture](docs/architecture.jpg)
+![architecture](docs/architecture.png)
 
 ## 🎯 Mục tiêu
 
@@ -47,7 +47,7 @@
 │  ├─ synth.avi          # Synthetic test video
 │  └─ videos/            # Sample surveillance videos
 ├─ docs/                  # Documentation và design
-│  ├─ architecture.jpg   # System architecture diagram
+│  ├─ architecture.png   # System architecture diagram
 │  ├─ guide.md          # User guide
 │  ├─ CHANGELOG.md      # Project history log
 │  └─ HANDOFF.md        # Current status và next steps
