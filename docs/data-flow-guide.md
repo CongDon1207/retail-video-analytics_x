@@ -6,20 +6,32 @@ Hướng dẫn chạy end-to-end pipeline từ video input → AI detection → 
 
 ---
 
-## 📥 Bước 1: Chạy AI Pipeline với xuất NDJSON
+## 📥 Bước 1: Chạy AI Pipeline (NDJSON hoặc stream Pulsar)
 
-Chạy AI detection trên video để tạo ra file metadata `detections_output.ndjson`.
+Chạy AI detection trên video để tạo metadata. Bạn có thể:
+
+- Ghi NDJSON (dev/debug) thành file `detections_output.ndjson`.
+- Hoặc phát trực tiếp metadata lên Pulsar theo thời gian thực (realtime).
 
 ```bash
-# Chạy AI pipeline với video
-py -3.12 -m ai.ingest \
+# (Lựa chọn A - NDJSON) Chạy AI pipeline và ghi NDJSON
+python -m ai.ingest \
   --backend cv \
   --src "data/videos/video.mp4" \
   --yolo 1 \
   --track 1 \
-  --display 1 \
+  --display 0 \
   --emit detection \
   --out detections_output.ndjson
+
+# (Lựa chọn B - Realtime) Chạy AI pipeline và gửi trực tiếp lên Pulsar
+python -m ai.ingest \
+  --backend cv \
+  --src "data/videos/video.mp4" \
+  --yolo 1 --track 1 --display 0 \
+  --emit pulsar \
+  --pulsar-url ${PULSAR_URL:-pulsar://localhost:6650} \
+  --pulsar-topic ${PULSAR_TOPIC:-persistent://retail/metadata/events}
 ```
 
 **Tham số:**

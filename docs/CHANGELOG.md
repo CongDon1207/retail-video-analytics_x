@@ -6,6 +6,8 @@ Ghi lại tất cả các công việc đã hoàn thành trong dự án Retail V
 
 - Fix Airflow Dockerfile constraints install at infrastructure/airflow/Dockerfile - prevent dependency conflicts when installing providers (completed)
 - Add Airflow constraints build-arg at docker-compose.yml (x-airflow-common.build.args.AIRFLOW_CONSTRAINTS_LOCATION) - fix build error: unbound variable; consistent provider versions (completed)
+- Change Flink services to use prebuilt image at docker-compose.yml (hungfnguyen28/retail-flink:1.18-v1); remove local build step for JM - enables always-ready infra (completed)
+- Add realtime Pulsar emit mode to AI ingest at ai/ingest/__main__.py and docs/data-flow-guide.md - stream detections directly to Pulsar without NDJSON intermediate (completed)
 - Fix Airflow compose layout at docker-compose.yml - move x-airflow-common to root, correct airflow-init paths, default AIRFLOW_UID=1000; services start reliably (completed)
 
 ## 2025-10-05

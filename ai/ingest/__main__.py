@@ -9,11 +9,13 @@ from typing import List, Optional, Sequence, Tuple, Union
 
 import cv2
 import numpy as np
+import os
 
 from .cv_source import CvSource
 from .gst_source import GstSource
 from ..detect.yolo_detector import YoloDetector
 from ..emit.json_emitter import JsonEmitter
+from ..emit.pulsar_producer import PulsarProducer
 from ..track.deepsort_tracker import DeepSortTracker, TrackResult
 
 
@@ -38,8 +40,13 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--yolo", type=int, choices=[0, 1], default=1, help="Bật YOLOv8")
     parser.add_argument("--track", type=int, choices=[0, 1], default=1, help="Bật DeepSORT")
     parser.add_argument("--display", type=int, choices=[0, 1], default=1, help="Hiển thị preview")
-    parser.add_argument("--emit", choices=["none", "detection"], default="none", help="Xuất NDJSON")
-    parser.add_argument("--out", default="-", help="Đường dẫn file NDJSON hoặc '-' để in ra stdout")
+    parser.add_argument("--emit", choices=["none", "detection", "pulsar"], default="none", help="Chế độ xuất dữ liệu: none|detection|pulsar")
+    parser.add_argument("--out", default="-", help="Đường dẫn file NDJSON hoặc '-' để in ra stdout (khi --emit detection)")
+    # Cấu hình Pulsar cho chế độ --emit pulsar (ưu tiên đọc từ ENV)
+    parser.add_argument("--pulsar-url", default=os.getenv("PULSAR_URL", "pulsar://localhost:6650"), help="Pulsar service URL (ENV PULSAR_URL)")
+    parser.add_argument("--pulsar-topic", default=os.getenv("PULSAR_TOPIC", "persistent://retail/metadata/events"), help="Pulsar topic (ENV PULSAR_TOPIC)")
+    parser.add_argument("--pulsar-name", default=os.getenv("PULSAR_PRODUCER_NAME", None), help="Tên producer (tùy chọn)")
+    parser.add_argument("--pulsar-batching", type=int, choices=[0, 1], default=int(os.getenv("PULSAR_BATCHING", "0")), help="Bật batching (1) hoặc tắt (0)")
     parser.add_argument("--model", default="yolov8n.pt", help="Model YOLOv8")
     parser.add_argument("--conf", type=float, default=0.25, help="Ngưỡng confidence")
     parser.add_argument("--classes", default=None, help="Danh sách lớp, phân tách bởi dấu phẩy")
@@ -173,6 +180,16 @@ def run() -> None:
     detector = _prepare_detector(enable_yolo, args.model, args.conf, classes)  # YOLO detector
     tracker = _prepare_tracker(enable_track, args)  # DeepSORT tracker
     emitter = JsonEmitter(args.out) if args.emit == "detection" else None  # JSON output
+    producer: Optional[PulsarProducer] = None
+    if args.emit == "pulsar":
+        # Khởi tạo PulsarProducer dùng config từ args/env; batching tuỳ chọn
+        producer_kwargs = {"batching_enabled": bool(args.pulsar_batching)}
+        producer = PulsarProducer(
+            service_url=str(args.pulsar_url),
+            topic=str(args.pulsar_topic),
+            producer_name=args.pulsar_name or None,
+            producer_kwargs=producer_kwargs,
+        )
 
     # Setup runtime variables
     pipeline_run_id = args.run_id or uuid.uuid4().hex
@@ -244,6 +261,36 @@ def run() -> None:
                     ],
                 )
 
+            # Gửi trực tiếp lên Pulsar nếu bật chế độ pulsar
+            if producer and detections:
+                width = int(frame.shape[1])
+                height = int(frame.shape[0])
+                try:
+                    producer.send_detection(
+                        schema_version="1.0",
+                        pipeline_run_id=pipeline_run_id,
+                        source={
+                            "store_id": args.store_id,
+                            "camera_id": args.camera_id,
+                            "stream_id": args.stream_id,
+                        },
+                        frame_index=frame_index,
+                        capture_ts=datetime.now(timezone.utc).isoformat(),
+                        image_size=(width, height),
+                        detections=[
+                            {
+                                "bbox": det.bbox,
+                                "conf": det.conf,
+                                "class_id": det.class_id,
+                                "class_name": det.class_name,
+                                "track_id": det.track_id,
+                            }
+                            for det in detections
+                        ],
+                    )
+                except Exception as exc:  # pragma: no cover
+                    print(f"[WARN] Lỗi gửi Pulsar: {exc}")
+
             # Hiển thị preview window nếu được bật
             if args.display:
                 preview = _draw_preview(frame, detections)
@@ -267,6 +314,8 @@ def run() -> None:
         source.release()
         if emitter:
             emitter.close()
+        if producer:
+            producer.close()
         if args.display:
             cv2.destroyAllWindows()
 
@@ -277,4 +326,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
