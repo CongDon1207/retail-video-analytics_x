@@ -139,6 +139,23 @@ MSYS_NO_PATHCONV=1 docker exec pulsar-broker \
 ```
 
 
+## 🥈 Bước 5: Chạy Silver Processing (Bronze → Silver)
+
+Chạy job Silver để bóc tách JSON trong `bronze_raw` thành bảng phẳng `silver_detections`.
+
+```bash
+# Chạy Silver từ file SQL mới nhất trên host (tránh dùng bản bake sẵn trong image)
+docker exec -i flink-jobmanager \
+  /opt/flink/bin/sql-client.sh - < flink-jobs/silver_processing.sql
+
+# Kiểm tra dữ liệu Silver trong MinIO (sau 1–2 checkpoint)
+docker exec minio mc ls -r local/warehouse/rva/silver_detections/data/
+
+# (Tùy chọn) Truy vấn nhanh qua Trino (catalog=lakehouse, schema=rva)
+# SELECT store_id, camera_id, COUNT(*) FROM lakehouse.rva.silver_detections GROUP BY 1,2 ORDER BY 3 DESC;
+```
+
+
 ## 📊 Data Flow Architecture
 
 ```

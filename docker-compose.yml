@@ -155,6 +155,7 @@ services:
     volumes:
       - ./infrastructure/flink/conf:/opt/flink/conf
       - flink_state:/opt/flink/state
+      - ./flink-jobs/silver_processing.sql:/opt/flink/usrlib/silver_processing.sql
     environment:
       AWS_REGION: ${S3_REGION}
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
@@ -202,7 +203,7 @@ services:
     command: server /data --console-address ":9001"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/ready"]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -210,9 +211,27 @@ services:
     networks:
       - retail-net
 
+  mc:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1
+    container_name: mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ALIAS: local
+      MINIO_SERVER_URL: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    entrypoint: ["/bin/sh","-lc","trap : TERM INT; while :; do sleep 3600; done"]
+    volumes:
+      - mc_config:/root/.mc
+      - ./infrastructure/minio/scripts:/scripts:ro
+    networks:
+      - retail-net
+
 
   minio-init:
-    image: minio/minio:latest
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1
     container_name: minio-init
     depends_on:
       minio:
@@ -224,7 +243,9 @@ services:
       MINIO_SERVER_URL: ${MINIO_SERVER_URL}
       ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE}
       MINIO_ADDITIONAL_BUCKETS: ${MINIO_ADDITIONAL_BUCKETS:-}
+      MINIO_MC_ALIAS: local
     volumes:
+      - mc_config:/root/.mc
       - ./infrastructure/minio/scripts/init.sh:/scripts/init.sh:ro
     restart: "no"
     networks:
@@ -288,6 +309,8 @@ volumes:
   minio_data:
     driver: local
   airflow_db:
+    driver: local
+  mc_config:
     driver: local
 
 networks:

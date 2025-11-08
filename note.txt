@@ -1,0 +1,8 @@
+-- lenh bash minio client --
+
+docker exec -it mc sh
+mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+mc alias list
+mc admin info local
+mc tree local
+mc du local
