@@ -2,6 +2,20 @@
 
 Ghi lại tất cả các công việc đã hoàn thành trong dự án Retail Video Analytics.
 
+## 2025-10-06
+
+### Flink SQL & Catalog Context Fix
+- **2025-10-06: Fix Flink SQL Catalog Context error at flink-jobs/bronze_ingest.sql - Switch to `default_catalog` for Pulsar source and fully qualified `iceberg.retail.bronze_detections` for sink to resolve CalciteException (completed)**
+- **2025-10-06: Remove unsupported Pulsar Catalog definition at flink-jobs/bronze_ingest.sql - Use inline connector definition to avoid ValidationException (completed)**
+
+### Infrastructure & Ingestion
+- **2025-10-06: Create JSONL replay script at scripts/replay_jsonl_to_pulsar.py - Enable replaying historical metadata to Pulsar topic `persistent://retail/metadata/events` (completed)**
+- **2025-10-06: Fix Pulsar connection error at infrastructure/pulsar/conf/standalone.conf - Set `advertisedAddress` to `localhost` to allow external client connections (completed)**
+- **2025-10-06: Fix Vision module path error at vision/config/settings.py - Use absolute paths for `BASE_DIR` to resolve FileNotFoundError (completed)**
+
+### Documentation
+- **2025-10-06: Create comprehensive execution guide at docs/guide.md - Add step-by-step instructions for environment setup, ingestion, and Flink job submission (completed)**
+
 ## 2025-10-05
 
 ### Flink Bronze Checkpoint Fix

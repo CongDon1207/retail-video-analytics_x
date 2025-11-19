@@ -1,58 +1,34 @@
--- Iceberg REST catalog trên MinIO (S3FileIO)
-CREATE CATALOG lakehouse WITH (
-  'type' = 'iceberg',
-  'catalog-impl' = 'org.apache.iceberg.rest.RESTCatalog',
-  'uri' = 'http://iceberg-rest:8181',
-  'warehouse' = 's3://warehouse/iceberg',
-  'io-impl' = 'org.apache.iceberg.aws.s3.S3FileIO',
-  's3.endpoint' = 'http://minio:9000',
-  's3.path-style-access' = 'true',
-  's3.access-key-id' = 'minioadmin',
-  's3.secret-access-key' = 'minioadmin123',
-  'client.region' = 'us-east-1',
-  's3.region' = 'us-east-1'
-);
+-- Switch to in-memory catalog for Pulsar source definition
+-- (Iceberg catalog cannot store Pulsar connector tables)
+USE CATALOG default_catalog;
 
-USE CATALOG lakehouse;
-CREATE DATABASE IF NOT EXISTS rva;
-
-CREATE TABLE IF NOT EXISTS rva.bronze_raw (
-  schema_version STRING,
-  pipeline_run_id STRING,
-  frame_index BIGINT,
-  payload STRING,
-  camera_id STRING,
-  store_id STRING,
-  ingest_ts TIMESTAMP_LTZ(3)
-)
-PARTITIONED BY (store_id)
-WITH (
-  'format-version' = '2',
-  'write.format.default' = 'parquet'
-);
-
--- Pulsar source: đọc JSON format
-CREATE TEMPORARY TABLE pulsar_source (
-  schema_version STRING,
-  pipeline_run_id STRING,
-  frame_index BIGINT,
-  payload STRING
+-- 1. Define Source Table (Read from Pulsar)
+CREATE TABLE IF NOT EXISTS pulsar_source_raw (
+    `value` STRING,
+    `event_time` TIMESTAMP(3) METADATA FROM 'publish_time',
+    `properties` MAP<STRING, STRING> METADATA FROM 'properties'
 ) WITH (
-  'connector' = 'pulsar',
-  'topics' = 'persistent://retail/metadata/events',
-  'service-url' = 'pulsar://pulsar-broker:6650',
-  'source.start.message-id' = 'earliest',
-  'format' = 'json'
+    'connector' = 'pulsar',
+    'topics' = 'persistent://retail/metadata/events',
+    'service-url' = 'pulsar://pulsar-broker:6650',
+    'source.start.message-id' = 'earliest',
+    'format' = 'raw'
 );
 
-INSERT INTO rva.bronze_raw
-SELECT
-  schema_version,
-  pipeline_run_id,
-  frame_index,
-  payload,
-  -- Parse JSON từ payload string để lấy camera_id và store_id
-  COALESCE(JSON_VALUE(payload, '$.source.camera_id'), 'unknown') AS camera_id,
-  COALESCE(JSON_VALUE(payload, '$.source.store_id'), 'unknown') AS store_id,
-  CURRENT_TIMESTAMP AS ingest_ts
-FROM pulsar_source;
+-- 2. Define Sink Table (Write to Iceberg Bronze)
+-- We reference the iceberg catalog explicitly
+CREATE TABLE IF NOT EXISTS iceberg.retail.bronze_detections (
+    ingest_ts TIMESTAMP(3),
+    publish_ts TIMESTAMP(3),
+    raw_payload STRING,
+    source_properties MAP<STRING, STRING>
+);
+
+-- 3. Insert Job (Streaming ETL)
+INSERT INTO iceberg.retail.bronze_detections
+SELECT 
+    CURRENT_TIMESTAMP,
+    event_time,
+    `value`,
+    properties
+FROM pulsar_source_raw;

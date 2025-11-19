@@ -1,0 +1,4 @@
+venv/
+detect/models/
+metadata/
+__pycache__/
