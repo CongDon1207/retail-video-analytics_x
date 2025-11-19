@@ -2,6 +2,12 @@
 
 Ghi lại tất cả các công việc đã hoàn thành trong dự án Retail Video Analytics.
 
+## 2025-10-05
+
+### Flink Bronze Checkpoint Fix
+- **2025-10-05: Re-enable Flink checkpointing and add JVM `--add-opens` at infrastructure/flink/conf/flink-conf.yaml - Allow Iceberg Bronze streaming sink to commit Parquet files to MinIO (completed)**
+- **2025-10-05: Update docs/HANDOFF.md - Document checkpoint status, new MinIO data footprint, and follow-up actions (completed)**
+
 ## 2025-09-30
 
 ### End-to-End Pipeline Completion

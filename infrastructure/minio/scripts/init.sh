@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 
 set -euo pipefail
 
@@ -60,4 +60,3 @@ done
 
 echo "[minio-init] Current buckets:"
 mc ls "${ALIAS_NAME}" || true
-
