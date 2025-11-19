@@ -60,6 +60,45 @@ docker compose up -d
   * 📄 **Project Doc (Google Drive)**: [Tài liệu Retail Video Analytics](https://drive.google.com/drive/folders/15HIuR8GIeGHsRPt7F2PeaChrG9XlMYoa?usp=sharing)
   * 📄 **Hướng dẫn chạy (Local)**: Xem `docs/guide.md`
   * 📄 **Luồng dữ liệu E2E**: Xem `docs/data-flow-guide.md`
+  * 🥈 **Silver (Bronze → Silver)**: SQL ở `flink-jobs/sql/*`; quick-start bên dưới
+  * 🥇 **Gold (BI Views qua Trino)**: `flink-jobs/sql/gold_views.sql`
+
+### Silver quick-start
+
+Chạy theo thứ tự để dựng bảng Silver `rva.silver_detections` từ Bronze `rva.bronze_raw`:
+
+```bash
+# 1) Setup Flink SQL session + Iceberg catalog
+docker exec -it flink-jobmanager bash -lc \
+  "/opt/flink/bin/sql-client.sh -f /opt/flink/usrlib/sql/silver_setup.sql"
+
+# 2) Tạo bảng Silver (chạy một lần)
+docker exec -it flink-jobmanager bash -lc \
+  "/opt/flink/bin/sql-client.sh -f /opt/flink/usrlib/sql/silver_create_table.sql"
+
+# 3) Streaming INSERT từ Bronze sang Silver
+docker exec -it flink-jobmanager bash -lc \
+  "/opt/flink/bin/sql-client.sh -f /opt/flink/usrlib/sql/silver_insert.sql"
+
+# Kiểm tra dữ liệu sinh ra trong MinIO
+docker exec minio mc ls -r local/warehouse/rva/silver_detections/data/
+```
+
+### Gold quick-start (Trino Views)
+
+Tạo các view Gold phục vụ Grafana/BI trực tiếp trên Trino:
+
+```bash
+# Copy file SQL vào container Trino rồi thực thi
+docker cp flink-jobs/sql/gold_views.sql trino:/tmp/gold_views.sql
+docker exec -it trino trino --file /tmp/gold_views.sql
+
+# Kiểm tra các view đã tạo
+docker exec -it trino trino --execute "SHOW TABLES FROM lakehouse.rva"
+
+# Truy vấn nhanh
+docker exec -it trino trino --execute "SELECT * FROM lakehouse.rva.v_gold_minute_by_cam ORDER BY ts_minute DESC LIMIT 20"
+```
 
 -----
 

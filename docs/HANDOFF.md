@@ -2,7 +2,7 @@
 
 ## Current Status (Trạng thái hiện tại)
 **Branch**: `don`  
-**Đang làm**: End-to-end pipeline đã hoàn thành và verify thành công  
+**Đang làm**: End-to-end pipeline hoàn chỉnh; Silver chạy ổn (Flink Java UDTF). Bổ sung Gold dưới dạng Trino Views.  
 **Lý do**: Full data flow từ AI detection → Pulsar (JSON) → Flink streaming → Iceberg Bronze (MinIO) đang hoạt động  
 **Mới cập nhật**: Bật lại checkpointing (60s) và thêm JVM `--add-opens` để Flink Bronze job commit dữ liệu; 288 messages đã được ghi thành công vào Bronze layer với 7 Parquet files
 
@@ -10,9 +10,10 @@
 
 ### High Priority
 1. **Silver/Gold Layer Development**
-   - Design Silver layer schema cho cleaned/enriched data
-   - Implement Flink SQL transformations cho Silver layer
-   - Add aggregation logic cho Gold layer (analytics-ready)
+   - Silver: đã chạy (Flink Java job). Giữ nguyên schema hiện tại.
+   - Gold: tạo Trino Views cho BI (minute/hour metrics, dwell theo track).
+   - Runbook Silver: `silver_setup.sql` → `silver_create_table.sql` → `silver_insert.sql` hoặc chạy Java job.
+   - Runbook Gold: `flink-jobs/sql/gold_views.sql` (chạy trong container Trino).
    
 2. **Monitoring & Observability**
    - Add Prometheus + Grafana services
@@ -44,7 +45,8 @@
 - **AI Modules**: `ai/detect/`, `ai/track/`, `ai/ingest/`, `ai/emit/`
 - **Infrastructure**: `infrastructure/flink/`, `infrastructure/pulsar/`, `infrastructure/minio/`, `infrastructure/iceberg/`
 - **Config**: `.env` (credentials), `docker-compose.yml` (4 services), `infrastructure/flink/conf/flink-conf.yaml`
-- **Jobs**: `flink-jobs/bronze_ingest.sql` (Bronze layer ingestion)
+- **Jobs**: `flink-jobs/bronze_ingest.sql` (Bronze layer ingestion); `flink-jobs/sql/silver_*.sql` (Silver layer)
+  , `flink-jobs/java` (Silver Java job), `flink-jobs/sql/gold_views.sql` (Gold Views)
 - **Test Data**: `data/videos/`, `yolov8n.pt`, `detections_output.ndjson`
 - **Documentation**: `docs/data-flow-guide.md`, `docs/HANDOFF.md`, `docs/CHANGELOG.md`
 
@@ -56,7 +58,7 @@
 - **Flink Setup**: ✅ JobManager + TaskManager healthy
 - **Flink Bronze Job**: ✅ Checkpoint 60s chạy thành công, tiêu thụ hết 288 messages và commit file
 - **Iceberg Bronze Table**: ✅ 7 Parquet files (~20KiB/file) tại `warehouse/rva/bronze_raw/data/store_id=store_01/`
-- **Data Flow**: ✅ End-to-end pipeline verified (Video → AI → Pulsar → Flink → Iceberg)
+- **Data Flow**: ✅ E2E ok (Video → AI → Pulsar → Flink → Iceberg). Silver ok; Gold Views có thể dùng ngay qua Trino
 - **Schema Format**: ✅ JSON (changed from Avro to fix deserialization issues)
 
 ## Schemas/Contracts (Schema hiện tại)
@@ -80,5 +82,3 @@
 - **Data Verified**: 288 messages successfully written to 7 Parquet files (~20KiB each), checkpoint commit OK
 - **Branch `don`**: Complete working pipeline, ready for Silver/Gold layer development
 - **Performance**: Job processed all messages without errors after JSON format change
-
-

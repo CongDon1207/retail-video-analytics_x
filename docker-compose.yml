@@ -1,110 +1,110 @@
-x-airflow-common:
-  &airflow-common
-  build:
-    context: ./infrastructure/airflow
-    dockerfile: Dockerfile
-    args:
-      AIRFLOW_CONSTRAINTS_LOCATION: https://raw.githubusercontent.com/apache/airflow/constraints-2.9.2/constraints-3.12.txt
-  environment:
-    &airflow-common-env
-    AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
-    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
-    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
-    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
-    ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE}
-    S3_ENDPOINT: ${S3_ENDPOINT}
-    S3_PATH_STYLE: ${S3_PATH_STYLE}
-    S3_REGION: ${S3_REGION}
-    S3_ACCESS_KEY: ${S3_ACCESS_KEY}
-    S3_SECRET_KEY: ${S3_SECRET_KEY}
-  volumes:
-    - ./infrastructure/airflow/dags:/opt/airflow/dags
-    - ./infrastructure/airflow/logs:/opt/airflow/logs
-    - ./infrastructure/airflow/plugins:/opt/airflow/plugins
-    - ./infrastructure/airflow/config:/opt/airflow/config
-  user: "${AIRFLOW_UID:-1000}:0"
-  networks:
-    - retail-net
-  depends_on:
-    &airflow-common-depends-on
-    airflow-postgres:
-      condition: service_healthy
+# x-airflow-common:
+#   &airflow-common
+#   build:
+#     context: ./infrastructure/airflow
+#     dockerfile: Dockerfile
+#     args:
+#       AIRFLOW_CONSTRAINTS_LOCATION: https://raw.githubusercontent.com/apache/airflow/constraints-2.9.2/constraints-3.12.txt
+#   environment:
+#     &airflow-common-env
+#     AIRFLOW__CORE__EXECUTOR: LocalExecutor
+#     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
+#     AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+#     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+#     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+#     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+#     ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE}
+#     S3_ENDPOINT: ${S3_ENDPOINT}
+#     S3_PATH_STYLE: ${S3_PATH_STYLE}
+#     S3_REGION: ${S3_REGION}
+#     S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+#     S3_SECRET_KEY: ${S3_SECRET_KEY}
+#   volumes:
+#     - ./infrastructure/airflow/dags:/opt/airflow/dags
+#     - ./infrastructure/airflow/logs:/opt/airflow/logs
+#     - ./infrastructure/airflow/plugins:/opt/airflow/plugins
+#     - ./infrastructure/airflow/config:/opt/airflow/config
+#   user: "${AIRFLOW_UID:-1000}:0"
+#   networks:
+#     - retail-net
+#   depends_on:
+#     &airflow-common-depends-on
+#     airflow-postgres:
+#       condition: service_healthy
 
 services:
 
-  airflow-postgres:
-    image: postgres:13
-    container_name: airflow-postgres
-    environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
-    volumes:
-      - airflow_db:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "airflow"]
-      interval: 10s
-      retries: 5
-    restart: always
-    networks:
-      - retail-net
+  # airflow-postgres:
+  #   image: postgres:13
+  #   container_name: airflow-postgres
+  #   environment:
+  #     POSTGRES_USER: airflow
+  #     POSTGRES_PASSWORD: airflow
+  #     POSTGRES_DB: airflow
+  #   volumes:
+  #     - airflow_db:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD", "pg_isready", "-U", "airflow"]
+  #     interval: 10s
+  #     retries: 5
+  #   restart: always
+  #   networks:
+  #     - retail-net
 
-  airflow-init:
-    <<: *airflow-common
-    container_name: airflow-init
-    entrypoint: /bin/bash
-    command:
-      - -c
-      - |
-        mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
-        chown -R "${AIRFLOW_UID}:0" /opt/airflow/{logs,dags,plugins}
-        chmod -R 755 /opt/airflow/{logs,dags,plugins}
-        exec /entrypoint airflow version
-    environment:
-      <<: *airflow-common-env
-      _AIRFLOW_DB_MIGRATE: 'true'
-      _AIRFLOW_WWW_USER_CREATE: 'true'
-      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
-      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
-    user: "0:0"
-    restart: "no"
+  # airflow-init:
+  #   <<: *airflow-common
+  #   container_name: airflow-init
+  #   entrypoint: /bin/bash
+  #   command:
+  #     - -c
+  #     - |
+  #       mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
+  #       chown -R "${AIRFLOW_UID}:0" /opt/airflow/{logs,dags,plugins}
+  #       chmod -R 755 /opt/airflow/{logs,dags,plugins}
+  #       exec /entrypoint airflow version
+  #   environment:
+  #     <<: *airflow-common-env
+  #     _AIRFLOW_DB_MIGRATE: 'true'
+  #     _AIRFLOW_WWW_USER_CREATE: 'true'
+  #     _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+  #     _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+  #   user: "0:0"
+  #   restart: "no"
 
-  airflow-webserver:
-    <<: *airflow-common
-    container_name: airflow-webserver
-    command: webserver
-    # Dùng cổng 8088 (vì Trino đã dùng 8080)
-    ports:
-      - "8088:8080"
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
+  # airflow-webserver:
+  #   <<: *airflow-common
+  #   container_name: airflow-webserver
+  #   command: webserver
+  #   # Dùng cổng 8088 (vì Trino đã dùng 8080)
+  #   ports:
+  #     - "8088:8080"
+  #   healthcheck:
+  #     test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 30s
+  #   restart: always
+  #   depends_on:
+  #     <<: *airflow-common-depends-on
+  #     airflow-init:
+  #       condition: service_completed_successfully
 
-  airflow-scheduler:
-    <<: *airflow-common
-    container_name: airflow-scheduler
-    command: scheduler
-    healthcheck:
-      test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-init:
-        condition: service_completed_successfully
+  # airflow-scheduler:
+  #   <<: *airflow-common
+  #   container_name: airflow-scheduler
+  #   command: scheduler
+  #   healthcheck:
+  #     test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 30s
+  #   restart: always
+  #   depends_on:
+  #     <<: *airflow-common-depends-on
+  #     airflow-init:
+  #       condition: service_completed_successfully
 
   pulsar-broker:
     image: apachepulsar/pulsar:3.3.2
@@ -155,7 +155,7 @@ services:
     volumes:
       - ./infrastructure/flink/conf:/opt/flink/conf
       - flink_state:/opt/flink/state
-      - ./flink-jobs/silver_processing.sql:/opt/flink/usrlib/silver_processing.sql
+      - ./flink-jobs/sql:/opt/flink/usrlib/sql
     environment:
       AWS_REGION: ${S3_REGION}
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
@@ -329,8 +329,8 @@ volumes:
     driver: local
   minio_data:
     driver: local
-  airflow_db:
-    driver: local
+  # airflow_db:
+  #   driver: local
   mc_config:
     driver: local
   grafana_data:

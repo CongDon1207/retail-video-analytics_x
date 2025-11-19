@@ -6,3 +6,37 @@ mc alias list
 mc admin info local
 mc tree local
 mc du local
+
+-- kiem tra lakehouse voi trino --
+
+trino
+SHOW SCHEMAS FROM lakehouse;
+SHOW TABLES FROM lakehouse.rva;
+
+
+
+# vào container broker
+docker compose exec pulsar-broker bash
+
+# 1) Tạo tenant 'retail' và gán allowed-clusters
+bin/pulsar-admin clusters list            # thường ra 'standalone'
+bin/pulsar-admin tenants create retail --allowed-clusters standalone || true
+bin/pulsar-admin tenants list
+
+# 2) Tạo namespace 'retail/metadata' và gán cluster
+bin/pulsar-admin namespaces create retail/metadata || true
+bin/pulsar-admin namespaces set-clusters -c standalone retail/metadata
+
+
+
+-- chuyen .ipynb sang .html --
+
+jupyter nbconvert --to html ....ipynb
+
+
+cd flink-jobs/java
+mvn -q -DskipTests package
+docker cp target/silver-job-0.1.0.jar flink-jobmanager:/opt/flink/usrlib/silver-job.jar
+docker exec -it flink-jobmanager bash -lc "/opt/flink/bin/flink run -d -c org.rva.silver.SilverJob /opt/flink/usrlib/silver-job.jar"
+docker exec -it flink-jobmanager bash -lc "/opt/flink/bin/flink run -d -c org.rva.gold.GoldBatchJob /opt/flink/usrlib/silver-job.jar"
+
