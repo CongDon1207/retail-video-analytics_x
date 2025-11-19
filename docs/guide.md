@@ -1,154 +1,116 @@
-# Hướng dẫn Video Analytics Pipeline (Ingest → YOLOv8 → DeepSORT → Export)
+# Hướng dẫn Chạy Pipeline Retail Video Analytics (End-to-End)
 
-Video pipeline thực hiện luồng xử lý video hoàn chỉnh: **Ingest video** → **Object Detection** → **Object Tracking** → **Export Metadata**
+Tài liệu này hướng dẫn chi tiết từng bước để khởi chạy hệ thống từ môi trường phát triển (Python) đến hạ tầng Streaming Lakehouse (Pulsar -> Flink -> Iceberg).
 
-## 🎯 Tổng quan Pipeline
+---
 
-**Pipeline Components:**
-- **Ingest**: Đọc video từ file MP4/RTSP qua GStreamer hoặc OpenCV
-- **Detect**: Phát hiện đối tượng (người, xe, đồ vật) bằng YOLOv8 
-- **Track**: Theo dõi đối tượng qua các frame bằng DeepSORT
-- **Emit**: Xuất metadata detection/tracking dạng NDJSON
+## 1. Chuẩn bị Môi trường Python
 
-**Luồng xử lý**: `Video Frame` → `YOLO Detection` → `DeepSORT Tracking` → `JSON Metadata` → `Display/Export`
+Trước tiên, cần thiết lập môi trường Python để chạy các module AI/Vision và script giả lập dữ liệu.
 
-## 📁 Cấu trúc chi tiết thư mục /ai
+### 1.1. Tạo và kích hoạt Virtual Environment
 
-```
-ai/
-├── ingest/                   # Module đọc và điều phối video
-│   ├── __init__.py          # Package init (4 dòng)
-│   ├── __main__.py          # ⭐ CLI chính điều phối pipeline (160 dòng)
-│   ├── gst_source.py        # GStreamer video backend (90 dòng)
-│   └── cv_source.py         # OpenCV video backend (32 dòng)
-├── detect/                  # Module object detection
-│   └── yolo_detector.py     # ⭐ YOLOv8 wrapper (33 dòng)
-├── track/                   # Module object tracking  
-│   └── deepsort_tracker.py  # ⭐ DeepSORT wrapper (80 dòng)
-└── emit/                    # Module xuất kết quả
-    └── json_emitter.py      # ⭐ NDJSON metadata exporter (90 dòng)
-```
-## 🔧 Cài đặt môi trường
-
-**Python 3.12** (khuyến nghị trên Windows)
-
-1) Tạo virtual environment (venv)
+Mở terminal (Git Bash hoặc PowerShell) tại thư mục gốc dự án:
 
 ```bash
-py -3.12 -m venv .venv312
+# Tạo môi trường ảo (chỉ làm 1 lần)
+python -m venv venv
+
+# Kích hoạt môi trường (Windows)
+source venv/Scripts/activate
+# Hoặc nếu dùng Command Prompt: venv\Scripts\activate
 ```
 
-2) Kích hoạt venv — chọn lệnh phù hợp với shell bạn đang dùng:
+### 1.2. Cài đặt thư viện
 
-- cmd.exe (Command Prompt):
-
-```powershell
-.venv312\Scripts\activate.bat
-```
-
-- PowerShell:
-
-```powershell
-.venv312\Scripts\Activate.ps1
-```
-
-- Git Bash / WSL / bash.exe:
+Cài đặt các dependencies cần thiết cho cả Vision và Pulsar Client:
 
 ```bash
-source .venv312/Scripts/activate
+pip install -r setup.txt
 ```
 
-Lưu ý: nếu bạn không muốn/không thể kích hoạt venv, có thể chạy pip thông qua Python cụ thể:`py -3.12 -m pip ...`.
+---
 
-3) Cài dependencies (chạy sau khi đã activate hoặc dùng `py -3.12 -m pip`)
+## 2. Khởi chạy Hạ tầng (Infrastructure)
+
+Hệ thống sử dụng Docker Compose để chạy các dịch vụ nền tảng: Pulsar, Flink, MinIO, Iceberg REST.
 
 ```bash
-# (sau khi đã activate) 
-py -3.12 -m pip install --upgrade pip wheel setuptools
-py -3.12 -m pip install ultralytics opencv-python deep-sort-realtime
+# Build và khởi chạy các container
+docker-compose up -d --build
 ```
 
-4) Kiểm tra cài đặt (tùy shell)
+*Lưu ý: Chờ khoảng 1-2 phút để các service (đặc biệt là Pulsar và Flink) khởi động hoàn toàn.*
 
-- Trên bash (Git Bash / WSL):
+---
+
+## 3. Chạy Module Vision (Tạo Dữ liệu)
+
+Bước này chạy mô hình YOLO để phát hiện đối tượng từ video và sinh ra file metadata.
 
 ```bash
-py -3.12 -m pip list | grep -E "(ultralytics|opencv|deep-sort)"
+# Chạy module vision
+python vision/main.py
 ```
 
-- Trên Windows cmd / PowerShell (dùng findstr thay cho grep):
+*   **Input:** Video tại `vision/video/video3.mp4` (hoặc cấu hình trong `.env`).
+*   **Output:** File metadata tại `data/metadata/video.jsonl`.
+*   **Thao tác:** Nhấn phím `q` trên cửa sổ video để dừng sớm nếu muốn.
 
-```powershell
-py -3.12 -m pip list | findstr /R "ultralytics opencv deep-sort"
-```
+---
 
-### Lựa chọn nhanh: Docker producer (không cần venv)
+## 4. Ingestion: Đẩy dữ liệu vào Pulsar
+
+Sử dụng script để đọc file metadata vừa tạo và đẩy vào Pulsar topic `retail/metadata/events`.
 
 ```bash
-docker build -f infrastructure/pulsar/producer.Dockerfile -t retail/pulsar-producer .
-docker run --rm --network=retail-video-analytics_retail-net \
-  retail/pulsar-producer \
-  --service-url pulsar://pulsar-broker:6650 \
-  --topic persistent://retail/metadata/events \
-  --limit 10
+# Chạy script replay
+python scripts/replay_jsonl_to_pulsar.py
 ```
 
-> Gợi ý: dùng `--dry-run` nếu chỉ muốn xem payload, và nhớ đổi `--network` nếu bạn đặt tên stack khác.
+*   Script sẽ giả lập tốc độ 30 FPS.
+*   Dữ liệu sẽ được gửi vào topic `persistent://retail/metadata/events`.
 
-## 🚀 Cách chạy Pipeline từng bước
+---
 
-### Bước 1: Chuẩn bị video test
+## 5. Processing: Flink Streaming ETL (Bronze Layer)
+
+Sử dụng Flink SQL để đọc từ Pulsar và ghi vào bảng Iceberg (Bronze Layer).
+
+### 5.1. Truy cập Flink SQL Client
+
+Mở một terminal mới (hoặc tab mới):
 
 ```bash
-# Tạo video tổng hợp để test (nếu chưa có video thực)
-py -3.12 scripts/make_synth_video.py
-# → Tạo data/synth.avi
+# Vào container Flink JobManager
+docker exec -it flink-jobmanager bash
 
-# Hoặc dùng video thực có sẵn
-ls "data/videos/"
+# Khởi động SQL Client với cấu hình khởi tạo
+./bin/sql-client.sh -i conf/sql-client-init.sql
 ```
 
-### Bước 2: Chạy Pipeline cơ bản (với display)
+### 5.2. Submit Job Bronze
 
-```bash
-# Test với video thực - hiển thị cửa sổ preview
-py -3.12 -m ai.ingest \
-  --backend cv \
-  --src "data/videos/Midtown corner store surveillance video 11-25-18.mp4" \
-  --yolo 1 \
-  --track 1 \
-  --display 1
+Trong giao diện `Flink SQL>`, chạy lệnh sau để submit job:
+
+```sql
+SOURCE '/opt/flink/usrlib/bronze_ingest.sql';
 ```
 
-**Ý nghĩa từng tham số:**
-- `--backend cv`: Dùng OpenCV để đọc video (ổn định, không cần GStreamer)
-- `--src`: Đường dẫn file video input  
-- `--yolo 1`: Bật YOLO detection (phát hiện người, xe, đồ vật)
-- `--track 1`: Bật DeepSORT tracking (gán ID cho đối tượng qua frames)
-- `--display 1`: **Hiển thị cửa sổ preview** để xem trực quan quá trình detect/track
+### 5.3. Kiểm tra Kết quả
 
-### Bước 3: Chạy Pipeline với xuất NDJSON
+Sau khi job được submit (trả về Job ID), bạn có thể kiểm tra dữ liệu đã vào Iceberg chưa bằng câu lệnh:
 
-```bash
-# Chạy đầy đủ + export metadata
-py -3.12 -m ai.ingest \
-  --backend cv \
-  --src "data/videos/Midtown corner store surveillance video 11-25-18.mp4" \
-  --yolo 1 \
-  --track 1 \
-  --display 1 \
-  --emit detection \
-  --out detections_output.ndjson
+```sql
+-- Query kiểm tra 5 dòng đầu tiên từ bảng Bronze
+SELECT * FROM iceberg.retail.bronze_detections LIMIT 5;
 ```
 
-```bash
-py -3.12 -m ai.ingest \
-  --backend cv \
-  --src "data/videos/video.mp4" \
-  --yolo 1 \
-  --track 1 \
-  --display 1 \
-  --emit detection \
-  --out detections_output.ndjson
-```
+Hoặc truy cập Dashboard Flink tại: [http://localhost:8081](http://localhost:8081) để theo dõi trạng thái Job.
 
+---
+
+## 6. Troubleshooting
+
+*   **Lỗi Pulsar Connect:** Nếu script Python không kết nối được Pulsar, hãy đảm bảo `advertisedAddress=localhost` trong `infrastructure/pulsar/conf/standalone.conf` và restart Pulsar container.
+*   **Lỗi Flink SQL:** Nếu gặp lỗi "Catalog not found", hãy kiểm tra lại file `sql-client-init.sql` và đảm bảo đã chạy `./bin/sql-client.sh -i ...`.
