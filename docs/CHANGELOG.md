@@ -2,25 +2,19 @@
 
 Ghi lại tất cả các công việc đã hoàn thành trong dự án Retail Video Analytics.
 
-## 2025-10-31
+## 2025-10-06
 
-- Fix Airflow Dockerfile constraints install at infrastructure/airflow/Dockerfile - prevent dependency conflicts when installing providers (completed)
-- Add Airflow constraints build-arg at docker-compose.yml (x-airflow-common.build.args.AIRFLOW_CONSTRAINTS_LOCATION) - fix build error: unbound variable; consistent provider versions (completed)
-- Change Flink services to use prebuilt image at docker-compose.yml (hungfnguyen28/retail-flink:1.18-v1); remove local build step for JM - enables always-ready infra (completed)
-- Add realtime Pulsar emit mode to AI ingest at ai/ingest/__main__.py and docs/data-flow-guide.md - stream detections directly to Pulsar without NDJSON intermediate (completed)
-- Fix Flink SQL parse error at flink-jobs/silver_processing.sql - use single-quoted string for Iceberg 'partitioning' property (completed)
-- Recreate silver_processing.sql from scratch (no computed columns, simple partitions, robust JSON_TABLE usage) at flink-jobs/silver_processing.sql (completed)
-- Update docs/data-flow-guide.md - add step to run Silver processing via stdin with sql-client; include MinIO and Trino verification (completed)
-- Mount Silver assembly JAR into Flink JobManager at docker-compose.yml for easy submission (completed)
-- Fix Airflow compose layout at docker-compose.yml - move x-airflow-common to root, correct airflow-init paths, default AIRFLOW_UID=1000; services start reliably (completed)
+### Flink SQL & Catalog Context Fix
+- **2025-10-06: Fix Flink SQL Catalog Context error at flink-jobs/bronze_ingest.sql - Switch to `default_catalog` for Pulsar source and fully qualified `iceberg.retail.bronze_detections` for sink to resolve CalciteException (completed)**
+- **2025-10-06: Remove unsupported Pulsar Catalog definition at flink-jobs/bronze_ingest.sql - Use inline connector definition to avoid ValidationException (completed)**
 
-## 2025-11-13
+### Infrastructure & Ingestion
+- **2025-10-06: Create JSONL replay script at scripts/replay_jsonl_to_pulsar.py - Enable replaying historical metadata to Pulsar topic `persistent://retail/metadata/events` (completed)**
+- **2025-10-06: Fix Pulsar connection error at infrastructure/pulsar/conf/standalone.conf - Set `advertisedAddress` to `localhost` to allow external client connections (completed)**
+- **2025-10-06: Fix Vision module path error at vision/config/settings.py - Use absolute paths for `BASE_DIR` to resolve FileNotFoundError (completed)**
 
-- Change docs/data-flow-guide.md to use `flink-jobs/sql/silver_setup.sql`, `silver_create_table.sql`, `silver_insert.sql` instead of deprecated `silver_processing.sql` (completed)
-- Add Silver quick-start commands to README.md for running Bronze → Silver streaming with Flink SQL (completed)
-- Update docs/HANDOFF.md with Silver runbook and key paths (completed)
-- Add new all-in-one Silver script at `flink-jobs/sql/silver_1.sql` (catalog + table + insert) for one-shot execution (completed)
-- Fix Flink SQL parse error in `flink-jobs/sql/silver_1.sql` by using Iceberg `'partitioning'` table property (instead of `PARTITIONED BY` with transforms) and correct bbox column order (completed)
+### Documentation
+- **2025-10-06: Create comprehensive execution guide at docs/guide.md - Add step-by-step instructions for environment setup, ingestion, and Flink job submission (completed)**
 
 ## 2025-10-05
 
