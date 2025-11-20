@@ -63,7 +63,12 @@ python vision/main.py
 
 Sử dụng script để đọc file metadata vừa tạo và đẩy vào Pulsar topic `retail/metadata/events`.
 
+**Lưu ý:** Đảm bảo đã kích hoạt môi trường ảo trước khi chạy:
+
 ```bash
+# Kích hoạt venv (nếu chưa kích hoạt)
+source venv/Scripts/activate
+
 # Chạy script replay
 python scripts/replay_jsonl_to_pulsar.py
 ```
@@ -79,22 +84,54 @@ Sử dụng Flink SQL để đọc từ Pulsar và ghi vào bảng Iceberg (Bron
 
 ### 5.1. Truy cập Flink SQL Client
 
-Mở một terminal mới (hoặc tab mới):
+Mở terminal mới:
 
 ```bash
-# Vào container Flink JobManager
+# Vào container Flink JobManager và mở SQL Client với file init
 docker exec -it flink-jobmanager bash
-
-# Khởi động SQL Client với cấu hình khởi tạo
 ./bin/sql-client.sh -i conf/sql-client-init.sql
 ```
 
 ### 5.2. Submit Job Bronze
 
-Trong giao diện `Flink SQL>`, chạy lệnh sau để submit job:
+**Cách khuyến nghị (1 lệnh, tránh lỗi “Non-query expression”)**  
+Chạy trực tiếp từ host, CLI sẽ tự xử lý file:
+
+```bash
+docker exec -it flink-jobmanager bash -lc "./bin/sql-client.sh -i conf/sql-client-init.sql -f /opt/flink/usrlib/sql/bronze_ingest.sql"
+```
+
+**Nếu vẫn muốn gõ thủ công trong giao diện `Flink SQL>`** (không dùng `SOURCE` vì SQL Gateway 1.18.1 không hỗ trợ trong interactive mode, dễ gặp lỗi “Non-query expression”): dán lần lượt ba đoạn sau:
 
 ```sql
-SOURCE '/opt/flink/usrlib/bronze_ingest.sql';
+CREATE DATABASE IF NOT EXISTS default_catalog.`default`;
+
+CREATE TABLE IF NOT EXISTS default_catalog.`default`.pulsar_source_raw (
+    `value` STRING,
+    `event_time` TIMESTAMP(3) METADATA FROM 'publish_time',
+    `properties` MAP<STRING, STRING> METADATA FROM 'properties'
+) WITH (
+    'connector' = 'pulsar',
+    'topics' = 'persistent://retail/metadata/events',
+    'service-url' = 'pulsar://pulsar-broker:6650',
+    'source.start.message-id' = 'earliest',
+    'format' = 'raw'
+);
+
+CREATE TABLE IF NOT EXISTS iceberg.retail.bronze_detections (
+    ingest_ts TIMESTAMP(3),
+    publish_ts TIMESTAMP(3),
+    raw_payload STRING,
+    source_properties MAP<STRING, STRING>
+);
+
+INSERT INTO iceberg.retail.bronze_detections
+SELECT 
+    CURRENT_TIMESTAMP,
+    event_time,
+    `value`,
+    properties
+FROM default_catalog.`default`.pulsar_source_raw;
 ```
 
 ### 5.3. Kiểm tra Kết quả

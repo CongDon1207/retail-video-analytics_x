@@ -5,7 +5,7 @@ import pulsar
 from pathlib import Path
 
 # Configuration
-PULSAR_SERVICE_URL = os.getenv("PULSAR_SERVICE_URL", "pulsar://localhost:6650")
+PULSAR_SERVICE_URL = os.getenv("PULSAR_SERVICE_URL", "pulsar://127.0.0.1:6650")
 # Must match the topic created in init-topics.sh: persistent://retail/metadata/events
 TOPIC_NAME = "persistent://retail/metadata/events"
 JSONL_FILE = Path(__file__).resolve().parent.parent / "data/metadata/video.jsonl"

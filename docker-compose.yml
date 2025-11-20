@@ -277,7 +277,7 @@ services:
     image: trinodb/trino:418
     container_name: trino
     ports:
-      - "8080:8080"
+      - "8083:8080"
     volumes:
       - ./infrastructure/trino/etc:/etc/trino
       - trino_data:/data/trino
