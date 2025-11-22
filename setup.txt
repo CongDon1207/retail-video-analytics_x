@@ -17,6 +17,7 @@ torchreid==0.2.5
 python-dotenv>=1.0.0
 
 # Messaging
-pulsar-client>=3.4.0,<4.0.0
+pulsar-client[avro]==3.5.0
+
 
 

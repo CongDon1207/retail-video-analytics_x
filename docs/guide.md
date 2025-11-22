@@ -58,12 +58,15 @@ python vision/main.py
 *   **Thao tác:** Nhấn phím `q` trên cửa sổ video để dừng sớm nếu muốn.
 
 ---
+docker exec minio mc alias set local http://localhost:9000 minioadmin minioadmin123
+docker exec minio mc ls -r local/warehouse/retail/bronze_detections/data/
+docker exec minio mc ls -r local/warehouse/retail/bronze_detections/metadata/
 
 ## 4. Ingestion: Đẩy dữ liệu vào Pulsar
 
 Sử dụng script để đọc file metadata vừa tạo và đẩy vào Pulsar topic `retail/metadata/events`.
 
-**Lưu ý:** Đảm bảo đã kích hoạt môi trường ảo trước khi chạy:
+**Cách 1 (host/venv):** Đảm bảo đã kích hoạt môi trường ảo trước khi chạy:
 
 ```bash
 # Kích hoạt venv (nếu chưa kích hoạt)
@@ -75,6 +78,67 @@ python scripts/replay_jsonl_to_pulsar.py
 
 *   Script sẽ giả lập tốc độ 30 FPS.
 *   Dữ liệu sẽ được gửi vào topic `persistent://retail/metadata/events`.
+
+**Cách 2 (chạy trong Docker container, khuyến nghị):**  
+Chạy script trong container Python để tránh vấn đề network resolution trên Windows:
+
+```bash
+# Git Bash (Windows) - cần export MSYS_NO_PATHCONV=1 để tránh Git Bash tự convert path
+export MSYS_NO_PATHCONV=1
+docker run --rm --network retail-video-analytics_retail-net \
+  -v "$(pwd):/app" -w /app \
+  -e PULSAR_SERVICE_URL=pulsar://pulsar-broker:6650 \
+  -e PULSAR_LISTENER_NAME=internal \
+  python:3.10-slim bash -c "pip install -q pulsar-client && python scripts/replay_jsonl_to_pulsar.py"
+
+export MSYS_NO_PATHCONV=1
+docker run --rm --network retail-video-analytics_retail-net \
+  -v "$(pwd):/app" -w /app \
+  -e PULSAR_SERVICE_URL=pulsar://pulsar-broker:6650 \
+  python:3.10-slim bash -c "pip install -q pulsar-client && python scripts/replay_jsonl_to_pulsar.py"
+
+
+# PowerShell
+docker run --rm --network retail-video-analytics_retail-net `
+  -v "${PWD}:/app" -w /app `
+  -e PULSAR_SERVICE_URL=pulsar://pulsar-broker:6650 `
+  -e PULSAR_LISTENER_NAME=internal `
+  python:3.10-slim bash -c "pip install -q pulsar-client && python scripts/replay_jsonl_to_pulsar.py"
+
+# Linux / macOS
+docker run --rm --network retail-video-analytics_retail-net \
+  -v "$(pwd):/app" -w /app \
+  -e PULSAR_SERVICE_URL=pulsar://pulsar-broker:6650 \
+  -e PULSAR_LISTENER_NAME=internal \
+  python:3.10-slim bash -c "pip install -q pulsar-client && python scripts/replay_jsonl_to_pulsar.py"
+```
+
+*Container sẽ resolve `pulsar-broker` qua Docker network `retail-net`; không cần sửa file hosts.*
+
+### 4.1. Kiểm tra Dữ liệu trong Pulsar
+
+Sau khi chạy script replay, bạn có thể verify dữ liệu đã vào Pulsar bằng các lệnh sau:
+
+**1. Kiểm tra topic stats (số messages, backlog, subscriptions):**
+```bash
+docker exec pulsar-broker bin/pulsar-admin topics stats persistent://retail/metadata/events
+```
+
+Các chỉ số quan trọng:
+- `msgInCounter`: Tổng số messages đã nhận
+- `msgOutCounter`: Số messages đã được consumer đọc
+- `msgBacklog`: Số messages chưa được đọc
+- `subscriptions`: Danh sách các subscription đang active
+
+**2. Xem danh sách subscriptions:**
+```bash
+docker exec pulsar-broker bin/pulsar-admin topics subscriptions persistent://retail/metadata/events
+```
+
+**5. Kiểm tra metadata của topic:**
+```bash
+docker exec pulsar-broker bin/pulsar-admin topics stats-internal persistent://retail/metadata/events
+```
 
 ---
 
@@ -94,11 +158,11 @@ docker exec -it flink-jobmanager bash
 
 ### 5.2. Submit Job Bronze
 
-**Cách khuyến nghị (1 lệnh, tránh lỗi “Non-query expression”)**  
-Chạy trực tiếp từ host, CLI sẽ tự xử lý file:
+**Cách khuyến nghị (1 lệnh, không cần file init riêng):**  
+Chạy trực tiếp từ host, file SQL đã chứa toàn bộ config catalog:
 
 ```bash
-docker exec -it flink-jobmanager bash -lc "./bin/sql-client.sh -i conf/sql-client-init.sql -f /opt/flink/usrlib/sql/bronze_ingest.sql"
+docker exec flink-jobmanager bash -lc "./bin/sql-client.sh -f /opt/flink/usrlib/sql/bronze_ingest.sql"
 ```
 
 **Nếu vẫn muốn gõ thủ công trong giao diện `Flink SQL>`** (không dùng `SOURCE` vì SQL Gateway 1.18.1 không hỗ trợ trong interactive mode, dễ gặp lỗi “Non-query expression”): dán lần lượt ba đoạn sau:
@@ -147,7 +211,13 @@ Hoặc truy cập Dashboard Flink tại: [http://localhost:8081](http://localhos
 
 ---
 
-## 6. Troubleshooting
+#
+docker exec flink-jobmanager ./bin/sql-client.sh -q "
+  USE CATALOG iceberg;
+  DROP TABLE IF EXISTS retail.bronze_detections;
+"
+# Hoặc:
+# docker exec flink-jobmanager ./bin/sql-client.sh -q \
+#   \"DROP TABLE IF EXISTS iceberg.retail.bronze_detections;\"
 
-*   **Lỗi Pulsar Connect:** Nếu script Python không kết nối được Pulsar, hãy đảm bảo `advertisedAddress=localhost` trong `infrastructure/pulsar/conf/standalone.conf` và restart Pulsar container.
-*   **Lỗi Flink SQL:** Nếu gặp lỗi "Catalog not found", hãy kiểm tra lại file `sql-client-init.sql` và đảm bảo đã chạy `./bin/sql-client.sh -i ...`.
+docker exec flink-jobmanager ./bin/sql-client.sh -q "SHOW TABLES IN iceberg.retail;"

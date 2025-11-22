@@ -112,7 +112,7 @@ services:
     command: ["/bin/bash", "-c", "bin/pulsar standalone"]
     ports:
       - "6650:6650"
-      - "8082:8080"
+      - "8082:8082"
     volumes:
       - ./infrastructure/pulsar/conf/standalone.conf:/pulsar/conf/standalone.conf
       - ./infrastructure/pulsar/conf/client.conf:/pulsar/conf/client.conf
@@ -122,10 +122,11 @@ services:
     environment:
       PULSAR_MEM: "-Xms512m -Xmx512m -XX:MaxDirectMemorySize=1g"
     healthcheck:
-      test: ["CMD", "/pulsar/bin/pulsar-admin", "brokers", "healthcheck"]
+      test: ["CMD", "curl", "-f", "http://localhost:8082/admin/v2/brokers/health"]
       interval: 10s
-      timeout: 5s
+      timeout: 30s
       retries: 30
+      start_period: 60s
     networks:
       - retail-net
 

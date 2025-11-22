@@ -53,6 +53,10 @@ docker compose up -d
   * **Grafana**: `3000`
   * **Pulsar Broker**: `6650`
 
+**Lưu ý Pulsar (Docker Desktop):** broker dùng dual-listener.  
+  * Nội bộ docker: `pulsar://pulsar-broker:6650` (listenerName=`internal`).  
+  * Host/Windows: `pulsar://127.0.0.1:6650` (listenerName=`external`).
+
 -----
 
 ## 📚 Tài liệu chi tiết

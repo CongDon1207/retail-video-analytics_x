@@ -34,6 +34,34 @@ bin/pulsar-admin namespaces set-clusters -c standalone retail/metadata
 jupyter nbconvert --to html ....ipynb
 
 
+-- chay bronze ingest job (Pulsar -> Iceberg) --
+
+# ⚠️ ISSUE: Flink SQL Pulsar connector không tạo consumer cho non-partitioned topic
+# Subscription được tạo nhưng consumers list = [], msgOutCounter = 0
+# Cần investigate: partitioned topic, DataStream API, hoặc connector version
+
+# Kiểm tra Pulsar topic có messages
+docker exec pulsar-broker bin/pulsar-admin topics stats persistent://retail/metadata/events
+
+# Kiểm tra subscriptions và consumers
+docker exec pulsar-broker bin/pulsar-admin topics stats persistent://retail/metadata/events | grep -A 20 "subscriptions"
+
+# Chạy Bronze ingest SQL (streaming job)
+docker exec flink-jobmanager bash -c "cat /opt/flink/usrlib/sql/bronze_ingest.sql | /opt/flink/bin/sql-client.sh embedded"
+
+# Kiểm tra job status
+curl -s http://localhost:8081/jobs | python -m json.tool
+
+# Xem chi tiết job metrics (thay JOB_ID)
+curl -s "http://localhost:8081/jobs/{JOB_ID}/vertices/{VERTEX_ID}/subtasks/metrics?get=numRecordsIn,numRecordsOut"
+
+# Query dữ liệu từ Trino
+docker exec trino trino --execute "SELECT COUNT(*) FROM lakehouse.rva.bronze_raw"
+docker exec trino trino --execute "SELECT * FROM lakehouse.rva.bronze_raw LIMIT 10"
+
+
+-- build va chay java jobs (Silver/Gold) --
+
 cd flink-jobs/java
 mvn -q -DskipTests package
 docker cp target/silver-job-0.1.0.jar flink-jobmanager:/opt/flink/usrlib/silver-job.jar
