@@ -148,7 +148,9 @@ services:
       - retail-net
 
   flink-jobmanager:
-    image: hungfnguyen28/retail-flink:1.18-v1
+    build:
+      context: .
+      dockerfile: infrastructure/flink/Dockerfile
     container_name: flink-jobmanager
     command: jobmanager
     ports:
@@ -172,7 +174,9 @@ services:
     networks:
       - retail-net
   flink-taskmanager:
-    image: hungfnguyen28/retail-flink:1.18-v1
+    build:
+      context: .
+      dockerfile: infrastructure/flink/Dockerfile
     container_name: flink-taskmanager
     command: taskmanager
     depends_on:
