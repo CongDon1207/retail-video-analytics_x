@@ -111,8 +111,8 @@ services:
     container_name: pulsar-broker
     command: ["/bin/bash", "-c", "bin/pulsar standalone"]
     ports:
-      - "6650:6650"
-      - "8082:8082"
+      - "6650:6650"      # Pulsar broker (binary protocol)
+      - "8084:8080"      # Pulsar admin API (mapped to host:8084 to avoid conflict)
     volumes:
       - ./infrastructure/pulsar/conf/standalone.conf:/pulsar/conf/standalone.conf
       - ./infrastructure/pulsar/conf/client.conf:/pulsar/conf/client.conf
@@ -122,7 +122,7 @@ services:
     environment:
       PULSAR_MEM: "-Xms512m -Xmx512m -XX:MaxDirectMemorySize=1g"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/admin/v2/brokers/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/admin/v2/brokers/health"]
       interval: 10s
       timeout: 30s
       retries: 30

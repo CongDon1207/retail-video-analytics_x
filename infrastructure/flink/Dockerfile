@@ -52,8 +52,14 @@ RUN set -eux; \
       -o "$FLINK_LIB_DIR/opentelemetry-context-${OPENTELEMETRY_VERSION}.jar"; \
     mkdir -p /opt/flink/state/checkpoints /opt/flink/state/savepoints; \
     chown -R flink:flink /opt/flink/state
+
+# -----------------------------------------------------------------------------
+# [FIX] ENABLE S3 PLUGIN
+# Copy plugin từ thư mục opt (có sẵn trong image) sang thư mục plugins để kích hoạt
+# -----------------------------------------------------------------------------
+RUN mkdir -p /opt/flink/plugins/s3-fs-hadoop && \
+    cp /opt/flink/opt/flink-s3-fs-hadoop-*.jar /opt/flink/plugins/s3-fs-hadoop/
+
 COPY flink-jobs/ "$FLINK_USR_LIB_DIR/"
 
 EXPOSE 6123 8081
-
-
