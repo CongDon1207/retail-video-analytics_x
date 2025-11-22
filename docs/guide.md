@@ -171,22 +171,22 @@ docker exec pulsar-broker bin/pulsar-admin topics stats-internal \
 
 ## 5. Bronze Layer Processing
 
-### 5.1. Build Flink Job (Java)
+<!-- ### 5.1. Build Flink Job (Java)
 
 ```bash
 cd flink-jobs/java
 mvn clean package -DskipTests
 ```
 
-**Output:** `target/silver-job-0.1.0.jar`
+**Output:** `target/silver-job-0.1.0.jar` -->
 
-### 5.2. Deploy vào Flink Cluster
+<!-- ### 5.2. Deploy vào Flink Cluster
 
 ```bash
 # Copy JAR vào JobManager container
 docker cp target/silver-job-0.1.0.jar \
   flink-jobmanager:/opt/flink/usrlib/bronze-job.jar
-```
+``` -->
 
 ### 5.3. Submit Bronze Job
 
