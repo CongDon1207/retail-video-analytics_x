@@ -8,6 +8,7 @@
 .venv312/
 venv/
 env/
+.venv/
 
 # IDE / Editor settings
 .vscode/
@@ -44,3 +45,5 @@ coverage.xml
 
 .serena/
 detections_output.ndjson
+**/target/
+**/.ipynb_checkpoints/

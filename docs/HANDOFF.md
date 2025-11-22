@@ -4,15 +4,16 @@
 **Branch**: `main`  
 **Đang làm**: End-to-end pipeline đã hoàn thành và verify thành công  
 **Lý do**: Full data flow từ AI detection → Pulsar (JSON) → Flink streaming → Iceberg Bronze (MinIO) đang hoạt động  
-**Mới cập nhật**: Fix lỗi Flink SQL "Non-query expression" bằng cách sử dụng `default_catalog` cho Pulsar source và reference trực tiếp `iceberg.retail.bronze_detections` cho sink.
+**Mới cập nhật**: Fix lỗi Flink SQL "Non-query expression" bằng cách tạo database `default` cho `default_catalog` trước khi khai báo Pulsar source; job Bronze submit OK. Cập nhật docs/guide.md: lưu ý SQL Gateway 1.18.1 không hỗ trợ `SOURCE` interactive, khuyến nghị chạy 1-lệnh `-f` hoặc dán full nội dung bronze_ingest thủ công.
 
 ## TODO & Next Steps (Các bước tiếp theo - ưu tiên)
 
 ### High Priority
 1. **Silver/Gold Layer Development**
-   - Design Silver layer schema cho cleaned/enriched data
-   - Implement Flink SQL transformations cho Silver layer
-   - Add aggregation logic cho Gold layer (analytics-ready)
+   - Silver: đã chạy (Flink Java job). Giữ nguyên schema hiện tại.
+   - Gold: tạo Trino Views cho BI (minute/hour metrics, dwell theo track).
+   - Runbook Silver: `silver_setup.sql` → `silver_create_table.sql` → `silver_insert.sql` hoặc chạy Java job.
+   - Runbook Gold: `flink-jobs/sql/gold_views.sql` (chạy trong container Trino).
    
 2. **Monitoring & Observability**
    - Add Prometheus + Grafana services
@@ -45,8 +46,8 @@
 - **Infrastructure**: `infrastructure/flink/`, `infrastructure/pulsar/`, `infrastructure/minio/`, `infrastructure/iceberg/`
 - **Config**: `.env` (credentials), `docker-compose.yml` (4 services), `infrastructure/flink/conf/flink-conf.yaml`
 - **Jobs**: `flink-jobs/bronze_ingest.sql` (Bronze layer ingestion)
-- **Test Data**: `vision/video/`, `data/metadata/video.jsonl`
-- **Documentation**: `docs/guide.md`, `docs/HANDOFF.md`, `docs/CHANGELOG.md`
+- **Test Data**: `data/videos/`, `yolov8n.pt`, `detections_output.ndjson`
+- **Documentation**: `docs/data-flow-guide.md`, `docs/HANDOFF.md`, `docs/CHANGELOG.md`
 
 ## Latest Checks (Kết quả test gần nhất)
 - **Docker Infrastructure**: ✅ All services running (Pulsar, Flink, MinIO, Iceberg REST)
@@ -54,8 +55,10 @@
 - **MinIO Setup**: ✅ Warehouse bucket ready
 - **Pulsar Setup**: ✅ Topic `persistent://retail/metadata/events` created
 - **Flink Setup**: ✅ JobManager + TaskManager healthy
-- **Flink Bronze Job**: ✅ Job submitted successfully, reading from Pulsar and writing to Iceberg
-- **Data Flow**: ✅ End-to-end pipeline verified (Video → Vision → Pulsar → Flink → Iceberg)
+- **Flink Bronze Job**: ✅ Checkpoint 60s chạy thành công, tiêu thụ hết 288 messages và commit file; test lại 2025-11-20 với `bronze_ingest.sql` (có bước tạo DB default) submit OK
+- **Iceberg Bronze Table**: ✅ 7 Parquet files (~20KiB/file) tại `warehouse/rva/bronze_raw/data/store_id=store_01/`
+- **Data Flow**: ✅ End-to-end pipeline verified (Video → AI → Pulsar → Flink → Iceberg)
+- **Schema Format**: ✅ JSON (changed from Avro to fix deserialization issues)
 
 ## Schemas/Contracts (Schema hiện tại)
 - **Detection Output**: JSONL format (`data/metadata/video.jsonl`)
@@ -70,8 +73,11 @@
 - **Pulsar Client**: Python client (JSON format), Flink connector 4.1.0-1.18 (Raw format)
 
 ## Notes
-- **Flink SQL Fix**: Resolved "Non-query expression" error by explicitly using `default_catalog` for Pulsar source table definition and fully qualified name for Iceberg sink table.
-- **Pulsar Config**: Updated `advertisedAddress=localhost` in `standalone.conf` to allow host-based Python scripts to connect.
-- **Metadata Location**: Moved metadata to `data/metadata/` to separate code and data.
+- **Avro → JSON Migration**: Changed producer from AvroSchema to JsonSchema due to Flink-Pulsar Avro deserialization incompatibility; updated `metadata-json-schema.json` from AVRO to JSON type (2025-11-20)
+- **Checkpointing**: Đã bật (60s) sau khi bổ sung JVM `--add-opens` cho java.util, java.lang, java.nio, sun.nio.ch
+- **Data Verified**: 288 messages successfully written to 7 Parquet files (~20KiB each), checkpoint commit OK
+- **Branch `don`**: Complete working pipeline, ready for Silver/Gold layer development
+- **Performance**: Job processed all messages without errors after JSON format change
+- **Localhost → 127.0.0.1**: Changed Pulsar external listener and AI default URL to 127.0.0.1 to avoid Windows DNS issues
 
 

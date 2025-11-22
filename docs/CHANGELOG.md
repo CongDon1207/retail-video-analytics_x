@@ -2,6 +2,11 @@
 
 Ghi lại tất cả các công việc đã hoàn thành trong dự án Retail Video Analytics.
 
+## 2025-11-20
+
+- **2025-11-20: Fix Flink SQL Bronze submit error at flink-jobs/sql/bronze_ingest.sql - Tạo database default cho default_catalog trước khi khai báo Pulsar source, hết lỗi “Non-query expression” và job submit thành công (completed)**
+ - **2025-11-20: Update docs/guide.md - Nêu rõ SQL Gateway 1.18.1 không support SOURCE interactive; khuyến nghị 1-lệnh -f hoặc dán full nội dung bronze_ingest thủ công (completed)**
+
 ## 2025-10-06
 
 ### Flink SQL & Catalog Context Fix

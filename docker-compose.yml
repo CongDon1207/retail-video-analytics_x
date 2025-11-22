@@ -1,11 +1,118 @@
+# x-airflow-common:
+#   &airflow-common
+#   build:
+#     context: ./infrastructure/airflow
+#     dockerfile: Dockerfile
+#     args:
+#       AIRFLOW_CONSTRAINTS_LOCATION: https://raw.githubusercontent.com/apache/airflow/constraints-2.9.2/constraints-3.12.txt
+#   environment:
+#     &airflow-common-env
+#     AIRFLOW__CORE__EXECUTOR: LocalExecutor
+#     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
+#     AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+#     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+#     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+#     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+#     ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE}
+#     S3_ENDPOINT: ${S3_ENDPOINT}
+#     S3_PATH_STYLE: ${S3_PATH_STYLE}
+#     S3_REGION: ${S3_REGION}
+#     S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+#     S3_SECRET_KEY: ${S3_SECRET_KEY}
+#   volumes:
+#     - ./infrastructure/airflow/dags:/opt/airflow/dags
+#     - ./infrastructure/airflow/logs:/opt/airflow/logs
+#     - ./infrastructure/airflow/plugins:/opt/airflow/plugins
+#     - ./infrastructure/airflow/config:/opt/airflow/config
+#   user: "${AIRFLOW_UID:-1000}:0"
+#   networks:
+#     - retail-net
+#   depends_on:
+#     &airflow-common-depends-on
+#     airflow-postgres:
+#       condition: service_healthy
+
 services:
+
+  # airflow-postgres:
+  #   image: postgres:13
+  #   container_name: airflow-postgres
+  #   environment:
+  #     POSTGRES_USER: airflow
+  #     POSTGRES_PASSWORD: airflow
+  #     POSTGRES_DB: airflow
+  #   volumes:
+  #     - airflow_db:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD", "pg_isready", "-U", "airflow"]
+  #     interval: 10s
+  #     retries: 5
+  #   restart: always
+  #   networks:
+  #     - retail-net
+
+  # airflow-init:
+  #   <<: *airflow-common
+  #   container_name: airflow-init
+  #   entrypoint: /bin/bash
+  #   command:
+  #     - -c
+  #     - |
+  #       mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
+  #       chown -R "${AIRFLOW_UID}:0" /opt/airflow/{logs,dags,plugins}
+  #       chmod -R 755 /opt/airflow/{logs,dags,plugins}
+  #       exec /entrypoint airflow version
+  #   environment:
+  #     <<: *airflow-common-env
+  #     _AIRFLOW_DB_MIGRATE: 'true'
+  #     _AIRFLOW_WWW_USER_CREATE: 'true'
+  #     _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+  #     _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+  #   user: "0:0"
+  #   restart: "no"
+
+  # airflow-webserver:
+  #   <<: *airflow-common
+  #   container_name: airflow-webserver
+  #   command: webserver
+  #   # Dùng cổng 8088 (vì Trino đã dùng 8080)
+  #   ports:
+  #     - "8088:8080"
+  #   healthcheck:
+  #     test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 30s
+  #   restart: always
+  #   depends_on:
+  #     <<: *airflow-common-depends-on
+  #     airflow-init:
+  #       condition: service_completed_successfully
+
+  # airflow-scheduler:
+  #   <<: *airflow-common
+  #   container_name: airflow-scheduler
+  #   command: scheduler
+  #   healthcheck:
+  #     test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 30s
+  #   restart: always
+  #   depends_on:
+  #     <<: *airflow-common-depends-on
+  #     airflow-init:
+  #       condition: service_completed_successfully
+
   pulsar-broker:
     image: apachepulsar/pulsar:3.3.2
     container_name: pulsar-broker
     command: ["/bin/bash", "-c", "bin/pulsar standalone"]
     ports:
-      - "6650:6650"
-      - "8082:8080"
+      - "6650:6650"      # Pulsar broker (binary protocol)
+      - "8084:8080"      # Pulsar admin API (mapped to host:8084 to avoid conflict)
     volumes:
       - ./infrastructure/pulsar/conf/standalone.conf:/pulsar/conf/standalone.conf
       - ./infrastructure/pulsar/conf/client.conf:/pulsar/conf/client.conf
@@ -15,10 +122,11 @@ services:
     environment:
       PULSAR_MEM: "-Xms512m -Xmx512m -XX:MaxDirectMemorySize=1g"
     healthcheck:
-      test: ["CMD", "/pulsar/bin/pulsar-admin", "brokers", "healthcheck"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/admin/v2/brokers/health"]
       interval: 10s
-      timeout: 5s
+      timeout: 30s
       retries: 30
+      start_period: 60s
     networks:
       - retail-net
 
@@ -40,10 +148,7 @@ services:
       - retail-net
 
   flink-jobmanager:
-    build:
-      context: .
-      dockerfile: infrastructure/flink/Dockerfile
-    image: retail/flink:1.18-iceberg-pulsar
+    image: hungfnguyen28/retail-flink:1.18-v1
     container_name: flink-jobmanager
     command: jobmanager
     ports:
@@ -51,10 +156,11 @@ services:
     volumes:
       - ./infrastructure/flink/conf:/opt/flink/conf
       - flink_state:/opt/flink/state
+      - ./flink-jobs/sql:/opt/flink/usrlib/sql
     environment:
-      AWS_REGION: ${S3_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_REGION: ${S3_REGION}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
       LOG4J_CONFIGURATION_FILE: /opt/flink/conf/log4j2.properties
       
@@ -66,7 +172,7 @@ services:
     networks:
       - retail-net
   flink-taskmanager:
-    image: retail/flink:1.18-iceberg-pulsar
+    image: hungfnguyen28/retail-flink:1.18-v1
     container_name: flink-taskmanager
     command: taskmanager
     depends_on:
@@ -75,9 +181,9 @@ services:
       - ./infrastructure/flink/conf:/opt/flink/conf
       - flink_state:/opt/flink/state
     environment:
-      AWS_REGION: ${S3_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_REGION: ${S3_REGION}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
       LOG4J_CONFIGURATION_FILE: /opt/flink/conf/log4j2.properties
     
@@ -91,14 +197,14 @@ services:
       - "9001:9001"   # MinIO Console
     environment:
       # Provide these via .env file or CI secrets for production
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/ready"]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -106,21 +212,41 @@ services:
     networks:
       - retail-net
 
+  mc:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1
+    container_name: mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ALIAS: local
+      MINIO_SERVER_URL: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    entrypoint: ["/bin/sh","-lc","trap : TERM INT; while :; do sleep 3600; done"]
+    volumes:
+      - mc_config:/root/.mc
+      - ./infrastructure/minio/scripts:/scripts:ro
+    networks:
+      - retail-net
+
 
   minio-init:
-    image: minio/minio:latest
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1
     container_name: minio-init
     depends_on:
       minio:
         condition: service_healthy
     entrypoint: ["/bin/bash", "/scripts/init.sh"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
-      MINIO_SERVER_URL: http://minio:9000
-      ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE:-s3a://warehouse}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_SERVER_URL: ${MINIO_SERVER_URL}
+      ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE}
       MINIO_ADDITIONAL_BUCKETS: ${MINIO_ADDITIONAL_BUCKETS:-}
+      MINIO_MC_ALIAS: local
     volumes:
+      - mc_config:/root/.mc
       - ./infrastructure/minio/scripts/init.sh:/scripts/init.sh:ro
     restart: "no"
     networks:
@@ -132,34 +258,83 @@ services:
     ports:
       - "8181:8181"
     environment:
-      AWS_REGION: ${S3_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_REGION: ${S3_REGION}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       CATALOG_WAREHOUSE: ${ICEBERG_WAREHOUSE}
       CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
       CATALOG_S3_ENDPOINT: ${S3_ENDPOINT}
       CATALOG_S3_ACCESS__KEY__ID: ${MINIO_ROOT_USER}
       CATALOG_S3_SECRET__ACCESS__KEY: ${MINIO_ROOT_PASSWORD}
       CATALOG_S3_PATH__STYLE__ACCESS: "true"
-      CATALOG_S3_REGION: ${S3_REGION:-us-east-1}
+      CATALOG_S3_REGION: ${S3_REGION}
     depends_on:
       - minio
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8181/v1/config"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
     networks:
       - retail-net
 
+  trino:
+    image: trinodb/trino:418
+    container_name: trino
+    ports:
+      - "8083:8080"
+    volumes:
+      - ./infrastructure/trino/etc:/etc/trino
+      - trino_data:/data/trino
+    environment:
+      ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_PATH_STYLE: ${S3_PATH_STYLE}
+      S3_REGION: ${S3_REGION}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+    depends_on:
+      - iceberg-rest
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/v1/info"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks:
+      - retail-net
+  
+  grafana:
+      image: grafana/grafana-oss:11.3.0
+      container_name: grafana
+      ports:
+        - "3000:3000"
+      environment:
+        GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+        GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+        # Cài plugin Trino; một số môi trường cần cho phép (nếu plugin chưa ký)
+        GF_INSTALL_PLUGINS: trino-datasource
+        GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: trino-datasource
+      volumes:
+        - ./infrastructure/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+        - ./infrastructure/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+        - grafana_data:/var/lib/grafana
+      depends_on:
+        - trino
+      restart: unless-stopped
+      networks:
+        - retail-net
+
 volumes:
+  trino_data:
+    driver: local
   flink_state:
     driver: local
   pulsar_data:
     driver: local
   minio_data:
+    driver: local
+  # airflow_db:
+  #   driver: local
+  mc_config:
+    driver: local
+  grafana_data:
     driver: local
 
 networks:
