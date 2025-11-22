@@ -59,8 +59,8 @@ python vision/main.py
 
 ---
 docker exec minio mc alias set local http://localhost:9000 minioadmin minioadmin123
-docker exec minio mc ls -r local/warehouse/retail/bronze_detections/data/
-docker exec minio mc ls -r local/warehouse/retail/bronze_detections/metadata/
+docker exec minio mc ls -r local/warehouse/rva/bronze_raw/data
+docker exec minio mc ls -r local/warehouse/rva/bronze_raw/metadata
 
 ## 4. Ingestion: Đẩy dữ liệu vào Pulsar
 

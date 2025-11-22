@@ -38,12 +38,24 @@ WITH (
   'write.format.default' = 'parquet'
 );
 
--- 4. Pulsar source: đọc JSON từ topic retail/metadata/events
+-- 4. Pulsar source: đọc JSON từ topic retail/metadata/events với nested structure
 CREATE TEMPORARY TABLE pulsar_source (
   schema_version STRING,
   pipeline_run_id STRING,
+  source ROW<store_id STRING, camera_id STRING, stream_id STRING>,
   frame_index BIGINT,
-  payload STRING
+  capture_ts TIMESTAMP(3),
+  image_size ROW<width INT, height INT>,
+  detections ARRAY<ROW<
+    det_id STRING,
+    `class` STRING,
+    class_id INT,
+    conf DOUBLE,
+    bbox ROW<x1 DOUBLE, y1 DOUBLE, x2 DOUBLE, y2 DOUBLE>,
+    track_id BIGINT
+  >>,
+  runtime ROW<model_name STRING, tracker_type STRING, conf_thres DOUBLE, class_filter ARRAY<INT>>,
+  source_uri STRING
 ) WITH (
   'connector' = 'pulsar',
   'topics' = 'persistent://retail/metadata/events',
@@ -53,14 +65,14 @@ CREATE TEMPORARY TABLE pulsar_source (
   'format' = 'json'
 );
 
--- 5. Streaming INSERT: Pulsar → Iceberg Bronze
+-- 5. Streaming INSERT: Pulsar → Iceberg Bronze (flatten và explode detections)
 INSERT INTO bronze_raw
 SELECT
   schema_version,
   pipeline_run_id,
   frame_index,
-  payload,
-  COALESCE(JSON_VALUE(payload, '$.source.camera_id'), 'unknown') AS camera_id,
-  COALESCE(JSON_VALUE(payload, '$.source.store_id'), 'unknown') AS store_id,
+  CAST(NULL AS STRING) AS payload,  -- Để null vì không cần lưu raw payload nữa
+  source.camera_id AS camera_id,
+  source.store_id AS store_id,
   CURRENT_TIMESTAMP AS ingest_ts
 FROM pulsar_source;
