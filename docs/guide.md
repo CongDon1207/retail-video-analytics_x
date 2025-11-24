@@ -11,10 +11,16 @@ Hướng dẫn chi tiết từng bước để khởi chạy pipeline phân tíc
 1. [Chuẩn bị Môi trường Python](#1-chuẩn-bị-môi-trường-python)
 2. [Khởi chạy Hạ tầng](#2-khởi-chạy-hạ-tầng)
 3. [Tạo Dữ liệu từ Video](#3-tạo-dữ-liệu-từ-video)
-4. [Ingestion vào Pulsar](#4-ingestion-vào-pulsar)
-5. [Bronze Layer Processing](#5-bronze-layer-processing)
-6. [Truy vấn Lakehouse](#6-truy-vấn-lakehouse)
-7. [Monitoring & Troubleshooting](#7-monitoring--troubleshooting)
+4. [Submit Bronze Job](#4-submit-bronze-job)
+5. [Ingestion vào Pulsar](#5-ingestion-vào-pulsar)
+6. [Submit Silver & Gold Jobs](#6-submit-silver--gold-jobs)
+7. [Truy vấn Lakehouse](#7-truy-vấn-lakehouse)
+8. [Monitoring & Troubleshooting](#8-monitoring--troubleshooting)
+
+> ⚠️ **Lưu ý quan trọng về thứ tự:**
+> 1. Submit **Bronze Job** (Section 4) trước khi replay data
+> 2. Replay data vào Pulsar (Section 5)
+> 3. Submit **Silver & Gold Jobs** (Section 6) sau khi đã có data trong Bronze
 
 ---
 
@@ -121,9 +127,42 @@ python vision/main.py
 
 ---
 
-## 4. Ingestion vào Pulsar
+## 4. Submit Bronze Job
 
-### 4.1. Replay Messages
+> ⚠️ **QUAN TRỌNG:** Submit Bronze Job **TRƯỚC** khi gửi data vào Pulsar để đảm bảo consumer sẵn sàng nhận messages.
+
+### 4.1. Submit Bronze Job (Streaming)
+
+```bash
+docker exec flink-jobmanager sh -c \
+  "./bin/flink run -d -c org.rva.BronzeIngestJob /opt/flink/usrlib/bronze-job.jar"
+```
+
+**Job Details:**
+- **Class:** `org.rva.BronzeIngestJob`
+- **Mode:** Detached (`-d`) - chạy background
+- **Source:** Pulsar topic `persistent://retail/metadata/events`
+- **Sink:** Iceberg table `lakehouse.rva.bronze_raw`
+- **Checkpoint:** Every 60 seconds
+
+### 4.2. Kiểm tra Job Status
+
+```bash
+# Xem danh sách jobs đang chạy
+docker exec flink-jobmanager sh -c "./bin/flink list"
+
+# Hoặc truy cập Flink Web UI: http://localhost:8081
+```
+
+✅ **Xác nhận:** Đảm bảo Bronze Job đang ở trạng thái `RUNNING` trước khi tiếp tục Section 5.
+
+---
+
+## 5. Ingestion vào Pulsar
+
+> 💡 **Lưu ý:** Chỉ chạy bước này **SAU KHI** Flink Bronze Job đã `RUNNING`.
+
+### 5.1. Replay Messages từ JSONL
 
 ```bash
 # Kích hoạt venv (nếu chưa)
@@ -138,7 +177,7 @@ python scripts/replay_jsonl_to_pulsar.py
 - Service URL: `pulsar://localhost:6650`
 - FPS: 30 (có thể điều chỉnh trong script)
 
-### 4.2. Verify Dữ liệu trong Pulsar
+### 5.2. Verify Dữ liệu trong Pulsar
 
 #### Kiểm tra Topic Stats
 
@@ -150,7 +189,7 @@ docker exec pulsar-broker bin/pulsar-admin topics stats \
 **Các metrics quan trọng:**
 - `msgInCounter` - Tổng messages đã nhận
 - `msgOutCounter` - Messages đã consume
-- `msgBacklog` - Messages chưa xử lý
+- `msgBacklog` - Messages chưa xử lý (nên = 0 nếu Flink đang consume)
 - `storageSize` - Dung lượng topic
 
 #### Xem Subscriptions
@@ -167,60 +206,7 @@ docker exec pulsar-broker bin/pulsar-admin topics stats-internal \
   persistent://retail/metadata/events
 ```
 
----
-
-## 5. Bronze Layer Processing
-
-<!-- ### 5.1. Build Flink Job (Java)
-
-```bash
-cd flink-jobs/java
-mvn clean package -DskipTests
-```
-
-**Output:** `target/silver-job-0.1.0.jar` -->
-
-<!-- ### 5.2. Deploy vào Flink Cluster
-
-```bash
-# Copy JAR vào JobManager container
-docker cp target/silver-job-0.1.0.jar \
-  flink-jobmanager:/opt/flink/usrlib/bronze-job.jar
-``` -->
-
-### 5.3. Submit Bronze Job
-
-```bash
-docker exec flink-jobmanager sh -c \
-  "./bin/flink run -d -c org.rva.BronzeIngestJob /opt/flink/usrlib/bronze-job.jar"
-
-# Silver Job (streaming clean từ Bronze -> Silver)
-docker exec flink-jobmanager sh -c \
-  "./bin/flink run -d -c org.rva.silver.SilverJob /opt/flink/usrlib/silver-job.jar"
-
-# Gold Batch Job (batch aggregate từ Silver -> Gold)
-docker exec flink-jobmanager sh -c \
-  "./bin/flink run -d -c org.rva.gold.GoldBatchJob /opt/flink/usrlib/gold-job.jar"
-```
-
-**Job Details:**
-- **Class:** `org.rva.BronzeIngestJob`
-- **Mode:** Detached (`-d`)
-- **Source:** Pulsar topic `persistent://retail/metadata/events`
-- **Sink:** Iceberg table `lakehouse.rva.bronze_raw`
-- **Checkpoint:** Every 60 seconds
-
-### 5.4. Kiểm tra Job Status
-
-```bash
-# Xem danh sách jobs đang chạy
-docker exec flink-jobmanager sh -c "./bin/flink list"
-
-# Hoặc truy cập Flink Web UI
-# http://localhost:8081
-```
-
-### 5.5. Test với Sample Data
+### 5.3. Test với Sample Data (Optional)
 
 ```bash
 # Gửi 5 test messages vào Pulsar
@@ -245,9 +231,59 @@ print('Done')
 
 ---
 
-## 6. Truy vấn Lakehouse
+## 6. Submit Silver & Gold Jobs
 
-### 6.1. Kiểm tra MinIO (Storage)
+> 💡 **Lưu ý:** Chạy sau khi đã replay data và chờ Bronze checkpoint (~60s) để có data trong `bronze_raw`.
+
+### 6.1. Verify Bronze Data
+
+```bash
+# Chờ checkpoint
+sleep 65
+
+# Kiểm tra data đã có trong Bronze
+docker exec trino sh -c "trino --catalog lakehouse --schema rva --execute \
+  'SELECT COUNT(*) FROM bronze_raw'"
+```
+
+### 6.2. Submit Silver Job (Streaming)
+
+```bash
+docker exec flink-jobmanager sh -c \
+  "./bin/flink run -d -c org.rva.silver.SilverJob /opt/flink/usrlib/silver-job.jar"
+```
+
+**Job Details:**
+- **Source:** Iceberg table `lakehouse.rva.bronze_raw`
+- **Sink:** Iceberg table `lakehouse.rva.silver_detection`
+
+### 6.3. Submit Gold Batch Job
+
+```bash
+# Chờ Silver checkpoint trước
+sleep 65
+
+docker exec flink-jobmanager sh -c \
+  "./bin/flink run -d -c org.rva.gold.GoldBatchJob /opt/flink/usrlib/gold-job.jar"
+```
+
+**Job Details:**
+- **Source:** Iceberg table `lakehouse.rva.silver_detection`
+- **Sink:** Các tables: `gold_people_per_minute`, `gold_track_summary`, `gold_zone_dwell`, `gold_zone_heatmap`
+
+### 6.4. Kiểm tra All Jobs
+
+```bash
+docker exec flink-jobmanager sh -c "./bin/flink list"
+```
+
+✅ **Xác nhận:** Cả 3 jobs (Bronze, Silver, Gold) đều ở trạng thái `RUNNING`.
+
+---
+
+## 7. Truy vấn Lakehouse
+
+### 7.1. Kiểm tra MinIO (Storage)
 
 ```bash
 # Setup MinIO client alias
@@ -264,7 +300,7 @@ docker exec minio mc ls -r local/warehouse/rva/bronze_raw/data/
 docker exec minio mc ls -r local/warehouse/rva/bronze_raw/metadata/
 ```
 
-### 6.2. Query với Trino
+### 7.2. Query với Trino
 
 ⏱️ **Lưu ý:** Chờ ~60 giây sau khi submit job để Flink checkpoint commit data.
 
@@ -287,7 +323,7 @@ docker exec trino sh -c "trino --catalog lakehouse --schema rva --execute \
   'DESCRIBE bronze_raw'"
 ```
 
-### 6.3. Truy cập Trino Console
+### 7.3. Truy cập Trino Console
 
 Mở browser: **http://localhost:8082**
 
@@ -309,9 +345,9 @@ LIMIT 20;
 
 ---
 
-## 7. Monitoring & Troubleshooting
+## 8. Monitoring & Troubleshooting
 
-### 7.0. Grafana Dashboards
+### 8.0. Grafana Dashboards
 
 **Grafana UI:** http://localhost:3000 (user/pass mặc định `admin` / `admin` nếu chưa đổi)
 
@@ -324,7 +360,7 @@ Các dashboard chính:
 
 Chỉ cần đảm bảo Bronze/Silver/Gold jobs đã chạy xong, sau đó mở Grafana và chọn các dashboard này để xem số liệu.
 
-### 7.1. Flink Monitoring
+### 8.1. Flink Monitoring
 
 **Flink Web UI:** http://localhost:8081
 
@@ -346,7 +382,7 @@ docker exec flink-jobmanager sh -c "./bin/flink cancel <JOB_ID>"
 docker logs flink-taskmanager -f
 ```
 
-### 7.2. Pulsar Monitoring
+### 8.2. Pulsar Monitoring
 
 ```bash
 # Kiểm tra broker health
@@ -359,7 +395,7 @@ docker exec pulsar-broker bin/pulsar-admin clusters list
 docker exec pulsar-broker bin/pulsar-admin namespaces policies retail/metadata
 ```
 
-### 7.3. Common Issues
+### 8.3. Common Issues
 
 #### Issue 1: Job không consume messages
 
@@ -395,7 +431,7 @@ docker exec flink-jobmanager curl -I http://minio:9000/minio/health/live
 docker exec flink-jobmanager ls -la /opt/flink/plugins/s3-fs-hadoop/
 ```
 
-### 7.4. Cleanup & Reset
+### 8.4. Cleanup & Reset
 
 ```bash
 # Stop tất cả services
@@ -433,7 +469,7 @@ docker exec pulsar-broker bin/pulsar-admin topics delete \
 
 ---
 
-**📝 Last Updated:** November 22, 2025  
-**🔖 Version:** 1.0.0
+**📝 Last Updated:** November 25, 2025  
+**🔖 Version:** 1.2.0
 
 
