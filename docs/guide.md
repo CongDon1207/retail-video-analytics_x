@@ -193,6 +193,14 @@ docker cp target/silver-job-0.1.0.jar \
 ```bash
 docker exec flink-jobmanager sh -c \
   "./bin/flink run -d -c org.rva.BronzeIngestJob /opt/flink/usrlib/bronze-job.jar"
+
+# Silver Job (streaming clean từ Bronze -> Silver)
+docker exec flink-jobmanager sh -c \
+  "./bin/flink run -d -c org.rva.silver.SilverJob /opt/flink/usrlib/silver-job.jar"
+
+# Gold Batch Job (batch aggregate từ Silver -> Gold)
+docker exec flink-jobmanager sh -c \
+  "./bin/flink run -d -c org.rva.gold.GoldBatchJob /opt/flink/usrlib/gold-job.jar"
 ```
 
 **Job Details:**
@@ -302,6 +310,19 @@ LIMIT 20;
 ---
 
 ## 7. Monitoring & Troubleshooting
+
+### 7.0. Grafana Dashboards
+
+**Grafana UI:** http://localhost:3000 (user/pass mặc định `admin` / `admin` nếu chưa đổi)
+
+Datasource `Trino Lakehouse` đã được provision sẵn (trỏ tới Trino catalog `iceberg`, schema `rva`).  
+Các dashboard chính:
+
+- **RVA - People Overview**: đọc từ `gold_people_per_minute`, cho bảng detections/unique_people theo phút và camera.
+- **RVA - Zone Dwell & Heatmap**: đọc từ `gold_zone_dwell`, cho visits và dwell time theo zone_x/zone_y.
+- **RVA - Track Summary**: đọc từ `gold_track_summary`, cho danh sách track với duration, movement (delta_x/delta_y) và avg_conf.
+
+Chỉ cần đảm bảo Bronze/Silver/Gold jobs đã chạy xong, sau đó mở Grafana và chọn các dashboard này để xem số liệu.
 
 ### 7.1. Flink Monitoring
 

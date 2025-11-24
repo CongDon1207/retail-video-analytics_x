@@ -26,10 +26,11 @@ ENV FLINK_USR_LIB_DIR=/opt/flink/usrlib
 # -----------------------------------------------------------------------------
 RUN mkdir -p "$FLINK_USR_LIB_DIR"
 
-# Copy compiled JAR từ build stage
+# Copy compiled JAR từ build stage (cùng một JAR, 3 tên cho 3 job)
 COPY --from=builder /build/target/silver-job-0.1.0.jar "$FLINK_USR_LIB_DIR/bronze-job.jar"
+COPY --from=builder /build/target/silver-job-0.1.0.jar "$FLINK_USR_LIB_DIR/silver-job.jar"
+COPY --from=builder /build/target/silver-job-0.1.0.jar "$FLINK_USR_LIB_DIR/gold-job.jar"
 
-# Copy SQL scripts (context là project root, nên path đúng)
-COPY flink-jobs/sql/ "$FLINK_USR_LIB_DIR/sql/"
+
 
 EXPOSE 6123 8081

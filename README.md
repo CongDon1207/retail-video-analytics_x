@@ -8,7 +8,7 @@
 
 ## 📦 Thành phần chính
 
-  * **Ingestion Service**: `gstreamer + yolo v8 + deepsort` → phát hiện & tracking, xuất **JSON metadata** (không đẩy khung hình).
+  * **Ingestion Service**: `gstreamer + yolo v8 + deepsort` → phát hiện & tracking, xuất **JSON metadata** (không đẩy khung hình). DeepSORT trong module `vision/` được tinh chỉnh qua biến môi trường `DS_*` trong `vision/.env` để giữ ID ổn định hơn khi đối tượng bị che khuất ngắn trên camera tĩnh.
   * **Transport**: **Apache Pulsar** (`Key_Shared` theo `camera_id`, schema Avro/JSON).
   * **Stream Compute**: **Apache Flink** (để xử lý, làm sạch, và ghi dữ liệu).
   * **Lakehouse**: **Apache Iceberg** (table format) + **REST Catalog** trên **MinIO** (kho lưu trữ).
@@ -64,7 +64,7 @@ docker compose up -d
   * 📄 **Project Doc (Google Drive)**: [Tài liệu Retail Video Analytics](https://drive.google.com/drive/folders/15HIuR8GIeGHsRPt7F2PeaChrG9XlMYoa?usp=sharing)
   * 📄 **Hướng dẫn chạy (Local)**: Xem `docs/guide.md`
   * 📄 **Luồng dữ liệu E2E**: Xem `docs/data-flow-guide.md`
-  * 🥈 **Silver (Bronze → Silver)**: SQL ở `flink-jobs/sql/*`; quick-start bên dưới
+  * 🥈 **Silver (Bronze → Silver)**: SQL ở `flink-jobs/sql/*` và notebook `notebooks/explore_analytics.ipynb` (dùng Trino); quick-start bên dưới
   * 🥇 **Gold (BI Views qua Trino)**: `flink-jobs/sql/gold_views.sql`
 
 ### Silver quick-start

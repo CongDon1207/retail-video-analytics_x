@@ -39,21 +39,44 @@ class DeepSORTTracker:
         embedder = _get_env("DEEPSORT_EMBEDDER", "mobilenet")          # mobilenet | torchreid
         embedder_gpu = _get_env("DEEPSORT_EMBEDDER_GPU", "1") in {"1", "true", "True"}
         det_conf = float(_get_env("DS_DET_CONF", str(conf_thres)))
+        self.nms_iou = float(_get_env("DS_NMS_IOU", "0.6"))
+        self.smooth_alpha = float(_get_env("DS_SMOOTH_ALPHA", "0.6"))
+        self.smooth_min_iou = float(_get_env("DS_SMOOTH_MIN_IOU", "0.10"))
+        self._prev_boxes: Dict[int, List[float]] = {}
 
         print(f"[DeepSORT] Model: {model_name}, YOLO conf: {det_conf}")
-        print(f"[DeepSORT] Params -> max_age={max_age}, n_init={n_init}, max_iou_distance={max_iou_distance}, embedder={embedder}, embedder_gpu={embedder_gpu}")
+        print(
+            f"[DeepSORT] Params -> max_age={max_age}, n_init={n_init}, "
+            f"max_iou_distance={max_iou_distance}, embedder={embedder}, "
+            f"embedder_gpu={embedder_gpu}, nms_iou={self.nms_iou}, "
+            f"smooth_alpha={self.smooth_alpha}, smooth_min_iou={self.smooth_min_iou}"
+        )
 
         # Khởi tạo YOLO detector
         self.detector = YoloDetector(model_name=model_name, conf_thres=det_conf)
 
         # Khởi tạo DeepSORT (chỉ truyền tham số an toàn theo API đã dùng)
-        self.tracker = DeepSort(
-            max_age=max_age,
-            n_init=n_init,
-            max_iou_distance=max_iou_distance,
-            embedder=embedder,
-            embedder_gpu=embedder_gpu,
-        )
+        # Nếu embedder=torchreid nhưng thiếu dependency (vd: gdown), fallback về mobilenet để tránh crash.
+        try:
+            self.tracker = DeepSort(
+                max_age=max_age,
+                n_init=n_init,
+                max_iou_distance=max_iou_distance,
+                embedder=embedder,
+                embedder_gpu=embedder_gpu,
+            )
+        except Exception as e:
+            if embedder == "torchreid":
+                print(f"[DeepSORT] Embedder 'torchreid' lỗi ({e}); fallback về 'mobilenet'")
+                self.tracker = DeepSort(
+                    max_age=max_age,
+                    n_init=n_init,
+                    max_iou_distance=max_iou_distance,
+                    embedder="mobilenet",
+                    embedder_gpu=embedder_gpu,
+                )
+            else:
+                raise
         print(f"[DeepSORT] Tracker initialized")
         print("-" * 60)
 
@@ -74,6 +97,9 @@ class DeepSORTTracker:
             
             # Detect bằng YOLO
             detections = self.detector.predict(frame, class_filter=classes)
+            # Giảm bớt trường hợp 1 người nhiều bbox gần giống nhau:
+            # áp dụng NMS nhẹ theo IoU và cùng class trước khi đưa vào DeepSORT.
+            detections = self._suppress_overlaps(detections)
             
             # Tạo mapping detection -> (cls_id, label) để lưu thông tin
             det_info_map = {}
@@ -110,6 +136,12 @@ class DeepSORTTracker:
                 track_id = track.track_id
                 ltrb = track.to_ltrb()  # [left, top, right, bottom]
                 x1, y1, x2, y2 = ltrb
+
+                # Làm mượt và clip bbox để tránh phóng to/thu nhỏ bất thường
+                H, W = frame.shape[:2]
+                x1, y1, x2, y2 = self._smooth_and_clip_bbox(
+                    track_id, [x1, y1, x2, y2], frame_h=H, frame_w=W
+                )
                 
                 # Lấy thông tin class từ detection gốc
                 det_class_str = track.det_class if hasattr(track, 'det_class') else "0"
@@ -138,3 +170,100 @@ class DeepSORTTracker:
                 "frame": frame,
                 "objects": objects
             }
+
+    def _suppress_overlaps(self, detections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Loại bớt các bbox trùng lặp (IoU cao, cùng class) để tránh 1 người có nhiều bbox.
+        Giữ lại bbox có confidence cao hơn trong mỗi cụm trùng.
+        """
+        if not detections:
+            return detections
+
+        # Sắp xếp theo confidence giảm dần
+        dets = sorted(detections, key=lambda d: d.get("conf", 0.0), reverse=True)
+        kept: List[Dict[str, Any]] = []
+
+        for d in dets:
+            x1, y1, x2, y2 = d["bbox"]
+            area1 = max(0.0, x2 - x1) * max(0.0, y2 - y1)
+            should_keep = True
+
+            for k in kept:
+                if d.get("cls") != k.get("cls"):
+                    continue
+                kx1, ky1, kx2, ky2 = k["bbox"]
+
+                xx1 = max(x1, kx1)
+                yy1 = max(y1, ky1)
+                xx2 = min(x2, kx2)
+                yy2 = min(y2, ky2)
+
+                w = max(0.0, xx2 - xx1)
+                h = max(0.0, yy2 - yy1)
+                inter = w * h
+                if inter <= 0:
+                    continue
+
+                area2 = max(0.0, kx2 - kx1) * max(0.0, ky2 - ky1)
+                union = area1 + area2 - inter
+                iou = inter / union if union > 0 else 0.0
+
+                if iou >= self.nms_iou:
+                    # bbox mới gần trùng hoàn toàn với bbox đã giữ → bỏ
+                    should_keep = False
+                    break
+
+            if should_keep:
+                kept.append(d)
+
+        return kept
+
+    def _smooth_and_clip_bbox(self, track_id: int, bbox: List[float], frame_h: int, frame_w: int) -> List[float]:
+        """
+        Làm mượt bbox bằng EMA để giảm rung/phóng to nhỏ bất thường, rồi clip vào khung hình.
+        """
+        x1, y1, x2, y2 = bbox
+
+        # Clip vào khung hình trước khi tính IoU
+        x1 = max(0.0, min(float(frame_w - 1), x1))
+        y1 = max(0.0, min(float(frame_h - 1), y1))
+        x2 = max(x1 + 1.0, min(float(frame_w), x2))
+        y2 = max(y1 + 1.0, min(float(frame_h), y2))
+        curr = [x1, y1, x2, y2]
+
+        prev = self._prev_boxes.get(track_id)
+        if prev:
+            iou = self._bbox_iou(curr, prev)
+            if iou >= self.smooth_min_iou:
+                alpha = self.smooth_alpha
+                smoothed = [
+                    alpha * curr[i] + (1 - alpha) * prev[i]
+                    for i in range(4)
+                ]
+                curr = smoothed
+
+        # Lưu lại cho frame sau
+        self._prev_boxes[track_id] = curr
+
+        return curr
+
+    @staticmethod
+    def _bbox_iou(a: List[float], b: List[float]) -> float:
+        ax1, ay1, ax2, ay2 = a
+        bx1, by1, bx2, by2 = b
+
+        xx1 = max(ax1, bx1)
+        yy1 = max(ay1, by1)
+        xx2 = min(ax2, bx2)
+        yy2 = min(ay2, by2)
+
+        w = max(0.0, xx2 - xx1)
+        h = max(0.0, yy2 - yy1)
+        inter = w * h
+        if inter <= 0:
+            return 0.0
+
+        area_a = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1)
+        area_b = max(0.0, bx2 - bx1) * max(0.0, by2 - by1)
+        union = area_a + area_b - inter
+        return inter / union if union > 0 else 0.0

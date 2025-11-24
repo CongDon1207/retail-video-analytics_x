@@ -4,25 +4,38 @@ Current status
   - `advertisedListeners=internal:pulsar://pulsar-broker:6650,external:pulsar://127.0.0.1:6650`
   - `webServicePort=8082`
 - docker-compose map: `6650:6650`, `8082:8082`.
-- Bronze ingest job đang chạy (Job ID: 3c1504a41ec1b6a35334d0eaeca29824).
+- Bronze/Silver/Gold jobs đã chạy và commit dữ liệu thành công vào Iceberg.
+- **Grafana dashboards redesigned (v5)**: Cải thiện layout, thêm descriptions, icons, pie charts, color thresholds.
 - Namespace `lakehouse.rva` đã được tạo trong Iceberg REST catalog.
 
+Grafana Dashboards (2025-11-25)
+- **Nguyên nhân gốc lỗi 0 data**: Trino datasource plugin **KHÔNG interpolate** Grafana template variables → bỏ template variables.
+- **Redesign v5**: 
+  - **People Overview**: 4 stat cards (Detections/Tracks/Cameras/Avg) + timeseries + pie chart + table
+  - **Zone Analytics**: 4 stat cards + 2 bar charts (top dwell/visits) + 2 tables (heatmap/details)
+  - **Track Behavior**: 4 stat cards + timeseries + bar charts + pie chart camera distribution
+- **Data đang hiển thị**:
+  - People: 13.5K detections, 69 unique, 1 camera
+  - Zone: 132 visits, ~8.5h avg dwell, 71 zones
+  - Track: 35 tracks, ~8.4h avg duration, 64.55% confidence, 13,460 frames
+
 Next steps
-- Xác nhận backlog giảm và file `.parquet` xuất hiện tại `warehouse/rva/bronze_raw/data/` trên MinIO.
-- Kiểm tra dữ liệu trong bảng Bronze qua Trino: `SELECT * FROM lakehouse.rva.bronze_raw LIMIT 10`.
-- Tiếp tục setup Silver layer theo hướng dẫn trong README.md.
-- Replay từ host: `PULSAR_SERVICE_URL=pulsar://127.0.0.1:6650`, `PULSAR_LISTENER_NAME=external`.
-- Replay không cần sửa hosts (docker Python cùng network):  
-  `docker run --rm --network retail-net -v "$PWD":/app -w /app python:3.10-slim /bin/bash -lc "pip install -r setup.txt && PULSAR_SERVICE_URL=pulsar://pulsar-broker:6650 PULSAR_LISTENER_NAME=internal python scripts/replay_jsonl_to_pulsar.py"`.
+- Tạo dữ liệu mới (chạy vision/main.py + replay) để có real-time data cho Grafana.
+- Thêm alerting rules nếu cần monitor traffic anomalies.
+- Cân nhắc thêm map/heatmap visualization cho zone data.
 
 Paths / Artifacts
+- Grafana dashboards: `infrastructure/grafana/provisioning/dashboards/*.json` (v5 redesigned)
 - Pulsar config: `infrastructure/pulsar/conf/standalone.conf`
 - Flink ingest SQL: `flink-jobs/sql/bronze_ingest.sql`
 - Replay script: `scripts/replay_jsonl_to_pulsar.py`
 - Compose: `docker-compose.yml` (Pulsar ports)
+- Vision DeepSORT config: `vision/.env` (DS_* defaults tinh chỉnh)
 
 Latest checks
-- pulsar-broker healthy; `pulsar-admin brokers healthcheck` OK; host nc tới `host.docker.internal:6650` vẫn fail (vì external advertise là 127.0.0.1).
+- Grafana: 3 dashboards v5 hoạt động với data visualization đẹp và đủ metrics.
+- Gold tables: `gold_people_per_minute` (2 rows), `gold_zone_dwell` (71 rows), `gold_track_summary` (35 rows).
+- pulsar-broker healthy; `pulsar-admin brokers healthcheck` OK.
 
 Environment
 - Docker Compose stack; Python venv optional (`venv/`), Pulsar 6650 exposed to host.
