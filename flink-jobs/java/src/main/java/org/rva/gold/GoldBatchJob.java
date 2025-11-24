@@ -59,7 +59,8 @@ public class GoldBatchJob {
         tEnv.executeSql("CREATE DATABASE IF NOT EXISTS rva");
         tEnv.executeSql("USE rva");
 
-        // Tạo bảng GOLD (nếu chưa có)
+        // Tạo bảng GOLD (nếu chưa có) – gồm cả bảng cũ (minute/hour)
+        // và các bảng Gold giống notebook (people_per_minute, zone_heatmap, zone_dwell, track_summary)
         tEnv.executeSql(String.join("\n",
             "CREATE TABLE IF NOT EXISTS rva.gold_minute_by_cam (",
             "  store_id STRING,",
@@ -88,6 +89,73 @@ public class GoldBatchJob {
             "  'format-version' = '2',",
             "  'write.format.default' = 'parquet',",
             "  'partitioning' = 'store_id,days(ts_hour)'",
+            ")"
+        ));
+
+        tEnv.executeSql(String.join("\n",
+            "CREATE TABLE IF NOT EXISTS rva.gold_people_per_minute (",
+            "  store_id STRING,",
+            "  camera_id STRING,",
+            "  ts_minute TIMESTAMP(3),",
+            "  detections BIGINT,",
+            "  unique_people BIGINT",
+            ") WITH (",
+            "  'format-version' = '2',",
+            "  'write.format.default' = 'parquet',",
+            "  'partitioning' = 'store_id,days(ts_minute)'",
+            ")"
+        ));
+
+        tEnv.executeSql(String.join("\n",
+            "CREATE TABLE IF NOT EXISTS rva.gold_zone_heatmap (",
+            "  store_id STRING,",
+            "  camera_id STRING,",
+            "  zone_x INT,",
+            "  zone_y INT,",
+            "  hits BIGINT,",
+            "  unique_tracks BIGINT",
+            ") WITH (",
+            "  'format-version' = '2',",
+            "  'write.format.default' = 'parquet'",
+            ")"
+        ));
+
+        tEnv.executeSql(String.join("\n",
+            "CREATE TABLE IF NOT EXISTS rva.gold_zone_dwell (",
+            "  store_id STRING,",
+            "  camera_id STRING,",
+            "  zone_x INT,",
+            "  zone_y INT,",
+            "  visits BIGINT,",
+            "  total_dwell_seconds DOUBLE,",
+            "  avg_dwell_seconds DOUBLE",
+            ") WITH (",
+            "  'format-version' = '2',",
+            "  'write.format.default' = 'parquet'",
+            ")"
+        ));
+
+        tEnv.executeSql(String.join("\n",
+            "CREATE TABLE IF NOT EXISTS rva.gold_track_summary (",
+            "  store_id STRING,",
+            "  camera_id STRING,",
+            "  track_id BIGINT,",
+            "  frames BIGINT,",
+            "  start_time TIMESTAMP(3),",
+            "  end_time TIMESTAMP(3),",
+            "  duration_seconds DOUBLE,",
+            "  min_x DOUBLE,",
+            "  max_x DOUBLE,",
+            "  delta_x DOUBLE,",
+            "  min_y DOUBLE,",
+            "  max_y DOUBLE,",
+            "  delta_y DOUBLE,",
+            "  avg_x DOUBLE,",
+            "  avg_y DOUBLE,",
+            "  avg_conf DOUBLE",
+            ") WITH (",
+            "  'format-version' = '2',",
+            "  'write.format.default' = 'parquet'",
             ")"
         ));
 
@@ -131,6 +199,100 @@ public class GoldBatchJob {
             );
             tEnv.executeSql(sql);
         }
+
+        // Bảng Gold giống notebook: 1) gold_people_per_minute
+        String peoplePerMinuteSql = String.join("\n",
+            "INSERT OVERWRITE rva.gold_people_per_minute",
+            "SELECT",
+            "  store_id,",
+            "  camera_id,",
+            "  FLOOR(capture_ts TO MINUTE) AS ts_minute,",
+            "  COUNT(*) AS detections,",
+            "  COUNT(DISTINCT track_id) AS unique_people",
+            "FROM rva.silver_detections",
+            "GROUP BY store_id, camera_id, FLOOR(capture_ts TO MINUTE)"
+        );
+        tEnv.executeSql(peoplePerMinuteSql);
+
+        // 2) gold_zone_heatmap – chia lưới 10x10 trên khung 1280x720, dùng centroid từ bbox
+        String heatmapSql = String.join("\n",
+            "INSERT OVERWRITE rva.gold_zone_heatmap",
+            "SELECT",
+            "  store_id,",
+            "  camera_id,",
+            "  CAST(FLOOR(((CAST(bbox_x1 AS DOUBLE) + CAST(bbox_x2 AS DOUBLE)) / 2.0) / 128.0) AS INT) AS zone_x,",
+            "  CAST(FLOOR(((CAST(bbox_y1 AS DOUBLE) + CAST(bbox_y2 AS DOUBLE)) / 2.0) / 72.0) AS INT) AS zone_y,",
+            "  COUNT(*) AS hits,",
+            "  COUNT(DISTINCT track_id) AS unique_tracks",
+            "FROM rva.silver_detections",
+            "GROUP BY",
+            "  store_id,",
+            "  camera_id,",
+            "  CAST(FLOOR(((CAST(bbox_x1 AS DOUBLE) + CAST(bbox_x2 AS DOUBLE)) / 2.0) / 128.0) AS INT),",
+            "  CAST(FLOOR(((CAST(bbox_y1 AS DOUBLE) + CAST(bbox_y2 AS DOUBLE)) / 2.0) / 72.0) AS INT)"
+        );
+        tEnv.executeSql(heatmapSql);
+
+        // 3) gold_zone_dwell – dwell theo track_id + zone
+        String dwellSql = String.join("\n",
+            "INSERT OVERWRITE rva.gold_zone_dwell",
+            "WITH per_track_zone AS (",
+            "  SELECT",
+            "    store_id,",
+            "    camera_id,",
+            "    track_id,",
+            "    CAST(FLOOR(((CAST(bbox_x1 AS DOUBLE) + CAST(bbox_x2 AS DOUBLE)) / 2.0) / 128.0) AS INT) AS zone_x,",
+            "    CAST(FLOOR(((CAST(bbox_y1 AS DOUBLE) + CAST(bbox_y2 AS DOUBLE)) / 2.0) / 72.0) AS INT) AS zone_y,",
+            "    MIN(capture_ts) AS start_time,",
+            "    MAX(capture_ts) AS end_time,",
+            "    CAST(TIMESTAMPDIFF(SECOND, MIN(capture_ts), MAX(capture_ts)) AS DOUBLE) AS dwell_seconds",
+            "  FROM rva.silver_detections",
+            "  GROUP BY",
+            "    store_id,",
+            "    camera_id,",
+            "    track_id,",
+            "    CAST(FLOOR(((CAST(bbox_x1 AS DOUBLE) + CAST(bbox_x2 AS DOUBLE)) / 2.0) / 128.0) AS INT),",
+            "    CAST(FLOOR(((CAST(bbox_y1 AS DOUBLE) + CAST(bbox_y2 AS DOUBLE)) / 2.0) / 72.0) AS INT)",
+            ")",
+            "SELECT",
+            "  store_id,",
+            "  camera_id,",
+            "  zone_x,",
+            "  zone_y,",
+            "  COUNT(*) AS visits,",
+            "  SUM(dwell_seconds) AS total_dwell_seconds,",
+            "  AVG(dwell_seconds) AS avg_dwell_seconds",
+            "FROM per_track_zone",
+            "GROUP BY store_id, camera_id, zone_x, zone_y"
+        );
+        tEnv.executeSql(dwellSql);
+
+        // 4) gold_track_summary – thống kê theo track
+        String trackSummarySql = String.join("\n",
+            "INSERT OVERWRITE rva.gold_track_summary",
+            "SELECT",
+            "  store_id,",
+            "  camera_id,",
+            "  track_id,",
+            "  COUNT(*) AS frames,",
+            "  MIN(capture_ts) AS start_time,",
+            "  MAX(capture_ts) AS end_time,",
+            "  CAST(TIMESTAMPDIFF(SECOND, MIN(capture_ts), MAX(capture_ts)) AS DOUBLE) AS duration_seconds,",
+            "  MIN(((CAST(bbox_x1 AS DOUBLE) + CAST(bbox_x2 AS DOUBLE)) / 2.0)) AS min_x,",
+            "  MAX(((CAST(bbox_x1 AS DOUBLE) + CAST(bbox_x2 AS DOUBLE)) / 2.0)) AS max_x,",
+            "  MAX(((CAST(bbox_x1 AS DOUBLE) + CAST(bbox_x2 AS DOUBLE)) / 2.0)) -",
+            "    MIN(((CAST(bbox_x1 AS DOUBLE) + CAST(bbox_x2 AS DOUBLE)) / 2.0)) AS delta_x,",
+            "  MIN(((CAST(bbox_y1 AS DOUBLE) + CAST(bbox_y2 AS DOUBLE)) / 2.0)) AS min_y,",
+            "  MAX(((CAST(bbox_y1 AS DOUBLE) + CAST(bbox_y2 AS DOUBLE)) / 2.0)) AS max_y,",
+            "  MAX(((CAST(bbox_y1 AS DOUBLE) + CAST(bbox_y2 AS DOUBLE)) / 2.0)) -",
+            "    MIN(((CAST(bbox_y1 AS DOUBLE) + CAST(bbox_y2 AS DOUBLE)) / 2.0)) AS delta_y,",
+            "  AVG(((CAST(bbox_x1 AS DOUBLE) + CAST(bbox_x2 AS DOUBLE)) / 2.0)) AS avg_x,",
+            "  AVG(((CAST(bbox_y1 AS DOUBLE) + CAST(bbox_y2 AS DOUBLE)) / 2.0)) AS avg_y,",
+            "  AVG(conf) AS avg_conf",
+            "FROM rva.silver_detections",
+            "GROUP BY store_id, camera_id, track_id"
+        );
+        tEnv.executeSql(trackSummarySql);
     }
 
     private static Map<String, String> parseArgs(String[] args) {

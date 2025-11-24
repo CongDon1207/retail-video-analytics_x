@@ -19,5 +19,7 @@ python-dotenv>=1.0.0
 # Messaging
 pulsar-client[avro]==3.5.0
 
+gdown
+
 
 

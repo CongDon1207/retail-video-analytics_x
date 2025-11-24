@@ -2,18 +2,20 @@
 
 ## Current Status (Trạng thái hiện tại)
 **Branch**: `main`  
-**Đang làm**: End-to-end pipeline đã hoàn thành và verify thành công  
-**Lý do**: Full data flow từ AI detection → Pulsar (JSON) → Flink streaming → Iceberg Bronze (MinIO) đang hoạt động  
-**Mới cập nhật**: Fix lỗi Flink SQL "Non-query expression" bằng cách tạo database `default` cho `default_catalog` trước khi khai báo Pulsar source; job Bronze submit OK. Cập nhật docs/guide.md: lưu ý SQL Gateway 1.18.1 không hỗ trợ `SOURCE` interactive, khuyến nghị chạy 1-lệnh `-f` hoặc dán full nội dung bronze_ingest thủ công.
+**Đang làm**: End-to-end pipeline đã hoàn thành và verify thành công; lớp Silver trong notebook đã bổ sung bước làm sạch cơ bản  
+**Lý do**: Full data flow từ AI detection → Pulsar (JSON) → Flink streaming → Iceberg Bronze (MinIO) đang hoạt động; Silver cho analytics (Trino) đã có rule khử null, trùng (det_id/track_id) và lọc nhiễu theo confidence  
+**Mới cập nhật**: Fix lỗi Flink SQL "Non-query expression" bằng cách tạo database `default` cho `default_catalog` trước khi khai báo Pulsar source; job Bronze submit OK. Cập nhật docs/guide.md: lưu ý SQL Gateway 1.18.1 không hỗ trợ `SOURCE` interactive, khuyến nghị chạy 1-lệnh `-f` hoặc dán full nội dung bronze_ingest thủ công. Thêm logic cleaning Silver trong `notebooks/explore_analytics.ipynb`.
 
 ## TODO & Next Steps (Các bước tiếp theo - ưu tiên)
 
 ### High Priority
 1. **Silver/Gold Layer Development**
-   - Silver: đã chạy (Flink Java job). Giữ nguyên schema hiện tại.
-   - Gold: tạo Trino Views cho BI (minute/hour metrics, dwell theo track).
+   - Silver (streaming/Flink Java): đã chạy với schema hiện tại; logic cleaning (null/duplicate/conf>=0.4) đã align với notebook thông qua `SilverJob` + UDTF `ParseDetections`.
+   - Silver (notebook/Trino): đã có bảng `silver_detections_v2` với rule: bỏ bản ghi thiếu key chính, lọc conf < 0.4, khử trùng lặp theo det_id/track_id (ROW_NUMBER).
+   - Gold (Java batch): `GoldBatchJob` giờ tạo thêm các bảng Gold giống notebook (`gold_people_per_minute`, `gold_zone_heatmap`, `gold_zone_dwell`, `gold_track_summary`) dựa trên Silver đã clean, ngoài các bảng minute/hour cũ.
+   - Gold (Trino views / Grafana): Grafana được connect sẵn tới Trino (`Trino Lakehouse` datasource) với 3 dashboard core: People Overview, Zone Dwell & Heatmap, Track Summary, đọc trực tiếp từ các bảng Gold.
    - Runbook Silver: `silver_setup.sql` → `silver_create_table.sql` → `silver_insert.sql` hoặc chạy Java job.
-   - Runbook Gold: `flink-jobs/sql/gold_views.sql` (chạy trong container Trino).
+   - Runbook Gold: chạy Java job `org.rva.gold.GoldBatchJob` từ Flink hoặc bổ sung file `gold_views.sql` nếu cần Trino-only.
    
 2. **Monitoring & Observability**
    - Add Prometheus + Grafana services

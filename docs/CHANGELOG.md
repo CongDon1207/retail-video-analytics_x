@@ -2,6 +2,25 @@
 
 Ghi lại tất cả các công việc đã hoàn thành trong dự án Retail Video Analytics.
 
+## 2025-11-25
+
+- **2025-11-25: Fix Track Behavior bargauge panels empty at rva_track_summary.json - Nguyên nhân: Transform `rowsToFields` mapping sai - không cần chỉ định `field.value` riêng. Giải pháp: Đơn giản hóa transform chỉ map `field.name`, Grafana tự sử dụng cột còn lại làm value. Cả 2 bargauge panels (Top 15 Duration, Top 15 Confidence) đã hiển thị đúng (completed)**
+
+- **2025-11-25: Redesign 3 Grafana dashboards for better UX at infrastructure/grafana/provisioning/dashboards/*.json - Cải thiện layout, thêm descriptions, icons, pie charts, color thresholds cho các dashboard. People Overview (v5): 4 stat cards + timeseries + pie chart + table với sort UI. Zone Analytics (v5): 4 stat cards + 2 bar charts (top dwell/visits) + 2 tables heatmap/details. Track Behavior (v5): 4 stat cards + timeseries + 2 bar charts + pie chart + histogram. Tất cả dashboards đều hiển thị đúng data: 13.5K detections, 35 tracks, 71 zones, 132 visits (completed)**
+
+- **2025-11-25: Fix Grafana dashboards zero data (root cause) at infrastructure/grafana/provisioning/dashboards/*.json - Nguyên nhân thực sự: Trino datasource plugin KHÔNG interpolate Grafana template variables ($store_id, $camera_id) trong rawSql, query gửi đi giữ nguyên literal "$store_id" thay vì giá trị thực. Giải pháp: Bỏ hoàn toàn template variables, dùng query đơn giản không có WHERE clause filter để hiển thị tất cả data. Dashboard hiện đã hoạt động với: People Overview (13,460 detections, 69 unique), Zone Dwell (132 visits, 71 zones), Track Summary (35 tracks, 0.645 avg_conf) (completed)**
+
+## 2025-11-23
+
+- **2025-11-23: Fix DeepSORT tracker defaults at vision/.env - Tinh chỉnh DS_* env để giảm nhảy ID khi người bị che khuất ngắn trong cảnh camera tĩnh (completed)**
+- **2025-11-23: Add per-frame NMS in DeepSORT tracker at vision/track/deepsort_tracker.py - Loại bớt các bbox trùng lặp có IoU cao để tránh 1 người xuất hiện nhiều bounding box trong cùng frame (completed)**
+- **2025-11-23: Add bbox smoothing & frame-clipping in DeepSORT tracker at vision/track/deepsort_tracker.py - Làm mượt kích thước hộp và tránh phóng to/thu nhỏ bất thường, thêm DS_SMOOTH_* env (completed)**
+- **2025-11-24: Add Silver cleaning rules (null/duplicate/conf>=0.4) at notebooks/explore_analytics.ipynb và flink-jobs/java/src/main/java/org/rva/silver/SilverJob.java - Chuẩn hóa lớp Silver (Trino + Flink) cho phân tích BI, loại record thiếu key, trùng det_id/track_id và detection nhiễu có confidence thấp (completed)**
+- **2025-11-24: Update docs/guide.md - Bổ sung lệnh chạy SilverJob và GoldBatchJob Java trong phần Bronze Layer Processing để thuận tiện bật đủ 3 job (Bronze/Silver/Gold) từ một chỗ (completed)**
+- **2025-11-24: Update infrastructure/flink/Dockerfile - Copy JAR silver-job-0.1.0.jar thành 3 tên bronze-job.jar, silver-job.jar, gold-job.jar trong /opt/flink/usrlib để chạy cả 3 job Java mà không cần docker cp thủ công (completed)**
+- **2025-11-24: Align GoldBatchJob Java với notebook Gold tables tại flink-jobs/java/src/main/java/org/rva/gold/GoldBatchJob.java - Tạo thêm các bảng gold_people_per_minute, gold_zone_heatmap, gold_zone_dwell, gold_track_summary từ Silver (dùng centroid từ bbox) để thống nhất với explore_analytics.ipynb (completed)**
+- **2025-11-24: Add core Grafana dashboards at infrastructure/grafana/provisioning/dashboards - Tạo 3 dashboard JSON (people_overview, zone_dwell, track_summary) đọc từ các bảng Gold để theo dõi traffic theo phút, dwell theo zone và hành vi track (completed)**
+
 ## 2025-11-20
 
 - **2025-11-20: Fix Flink SQL Bronze submit error at flink-jobs/sql/bronze_ingest.sql - Tạo database default cho default_catalog trước khi khai báo Pulsar source, hết lỗi “Non-query expression” và job submit thành công (completed)**
