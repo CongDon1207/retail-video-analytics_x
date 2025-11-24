@@ -31,7 +31,6 @@ COPY --from=builder /build/target/silver-job-0.1.0.jar "$FLINK_USR_LIB_DIR/bronz
 COPY --from=builder /build/target/silver-job-0.1.0.jar "$FLINK_USR_LIB_DIR/silver-job.jar"
 COPY --from=builder /build/target/silver-job-0.1.0.jar "$FLINK_USR_LIB_DIR/gold-job.jar"
 
-# Copy SQL scripts (context là project root, nên path đúng)
-COPY flink-jobs/sql/ "$FLINK_USR_LIB_DIR/sql/"
+
 
 EXPOSE 6123 8081

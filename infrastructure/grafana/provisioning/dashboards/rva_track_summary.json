@@ -84,9 +84,6 @@
       "transformations": [{ "id": "rowsToFields", "options": { "mappings": [{ "fieldName": "track", "handlerKey": "field.name" }] } }],
       "targets": [{ "refId": "A", "rawSql": "SELECT concat('Track #', cast(track_id as varchar)) AS track, avg_conf\nFROM lakehouse.rva.gold_track_summary\nORDER BY avg_conf DESC\nLIMIT 15" }]
     },
-      "options": { "orientation": "horizontal", "showValue": "always", "legend": { "displayMode": "hidden" } },
-      "targets": [{ "refId": "A", "rawSql": "SELECT concat('Track #', cast(track_id as varchar)) AS track, avg_conf\nFROM lakehouse.rva.gold_track_summary\nORDER BY avg_conf DESC\nLIMIT 15" }]
-    },
     {
       "id": 8,
       "type": "piechart",
