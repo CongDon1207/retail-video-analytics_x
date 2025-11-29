@@ -125,7 +125,9 @@ public class SilverJob {
             "                   COALESCE(t.det_id, CAST(t.track_id AS STRING))",
             "      ORDER BY t.conf DESC, TO_TIMESTAMP_LTZ(t.capture_ts_ms, 3) DESC",
             "    ) AS rn",
-            "  FROM rva.bronze_raw AS b,",
+            // --- SỬA ĐỔI QUAN TRỌNG TẠI ĐÂY ---
+            // Thêm OPTIONS hint để kích hoạt chế độ Streaming đọc từ Iceberg
+            "  FROM rva.bronze_raw /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s') */ AS b,",
             "       LATERAL TABLE(parse_detections(b.payload)) AS t",
             "  WHERE",
             "    JSON_VALUE(b.payload, '$.frame_index') IS NOT NULL",
@@ -156,4 +158,3 @@ public class SilverJob {
         return null;
     }
 }
-

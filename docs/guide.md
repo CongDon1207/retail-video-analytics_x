@@ -253,6 +253,8 @@ docker exec flink-jobmanager sh -c \
   "./bin/flink run -d -c org.rva.silver.SilverJob /opt/flink/usrlib/silver-job.jar"
 ```
 
+
+
 **Job Details:**
 - **Source:** Iceberg table `lakehouse.rva.bronze_raw`
 - **Sink:** Iceberg table `lakehouse.rva.silver_detection`
@@ -265,6 +267,12 @@ sleep 65
 
 docker exec flink-jobmanager sh -c \
   "./bin/flink run -d -c org.rva.gold.GoldBatchJob /opt/flink/usrlib/gold-job.jar"
+
+# chạy streaming
+
+docker exec flink-jobmanager sh -c \
+  "./bin/flink run -d -c org.rva.gold.GoldStreamingJob /opt/flink/usrlib/gold-job.jar"
+
 ```
 
 **Job Details:**

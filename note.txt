@@ -1,3 +1,6 @@
+cd flink-jobs/java
+mvn clean package
+
 -- lenh bash minio client --
 
 docker exec -it mc sh
