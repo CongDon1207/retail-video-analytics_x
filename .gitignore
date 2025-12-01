@@ -47,3 +47,5 @@ coverage.xml
 detections_output.ndjson
 **/target/
 **/.ipynb_checkpoints/
+
+data/

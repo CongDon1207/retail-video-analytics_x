@@ -2,6 +2,12 @@
 
 Ghi lại tất cả các công việc đã hoàn thành trong dự án Retail Video Analytics.
 
+## 2025-12-01
+
+- **2025-12-01: Automate Flink job submission at infrastructure/flink/scripts/submit-jobs.sh & docker-compose.yml - Tạo script tự động submit 8 jobs khi khởi động stack. Thêm service `flink-job-submitter` vào Docker Compose. Fix lỗi healthcheck của `iceberg-rest` (thiếu curl, chuyển sang dùng bash tcp check) để đảm bảo dependency chain hoạt động đúng. Hệ thống hiện tự động chạy full pipeline (Bronze -> Silver -> 6 Gold) khi `docker compose up` (completed)**
+
+- **2025-12-01: Split Gold job into 6 separate jobs at flink-jobs/java/src/main/java/org/rva/gold/*.java - Tách GoldStreamingJob thành 6 job riêng biệt (GoldMinuteByCamJob, GoldHourByCamJob, GoldPeoplePerMinuteJob, GoldZoneHeatmapJob, GoldZoneDwellJob, GoldTrackSummaryJob) để tránh SQLite lock conflict khi REST Catalog xử lý concurrent commits. Tạo GoldJobBase.java làm abstract class chia sẻ cấu hình catalog. Tất cả 8 jobs (Bronze + Silver + 6 Gold) đang RUNNING ổn định (completed)**
+
 ## 2025-11-25
 
 - **2025-11-25: Fix Track Behavior bargauge panels empty at rva_track_summary.json - Nguyên nhân: Transform `rowsToFields` mapping sai - không cần chỉ định `field.value` riêng. Giải pháp: Đơn giản hóa transform chỉ map `field.name`, Grafana tự sử dụng cột còn lại làm value. Cả 2 bargauge panels (Top 15 Duration, Top 15 Confidence) đã hiển thị đúng (completed)**

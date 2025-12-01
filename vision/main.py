@@ -1,80 +1,130 @@
-# main.py
-from track.tracker_factory import create_tracker
-from emit.json_emitter import JsonEmitter
-from utils.visualizer import Visualizer
-from config.settings import settings
-from datetime import datetime, timezone
+# vision/main.py
 import uuid
 import cv2
+from datetime import datetime, timezone
+
+# Import các module nội bộ
+from track.tracker_factory import create_tracker
+from utils.visualizer import Visualizer
+from config.settings import settings
+
+# --- THAY ĐỔI 1: Import PulsarEmitter thay vì JsonEmitter ---
+# (Đảm bảo bạn đã tạo file vision/emit/pulsar_emitter.py như hướng dẫn trước)
+from emit.pulsar_emitter import PulsarEmitter 
 
 if __name__ == "__main__":
-    # --- metadata chung ---
+    # --- CẤU HÌNH PIPELINE ---
     pipeline_run_id = uuid.uuid4().hex
+    
+    # Metadata nguồn phát (giả lập camera store_01)
     source = {
         "store_id": settings.STORE_ID,
         "camera_id": settings.CAMERA_ID,
         "stream_id": settings.STREAM_ID
     }
 
-    # --- khởi tạo ---
+    # Cấu hình Pulsar (Kết nối từ máy Host vào Docker container)
+    PULSAR_URL = "pulsar://localhost:6650"
+    PULSAR_TOPIC = "persistent://retail/metadata/events"
+
+    # --- KHỞI TẠO CÁC THÀNH PHẦN ---
     print(f"[Main] Starting pipeline run: {pipeline_run_id}")
-    print(f"[Main] Config: Model={settings.MODEL_NAME}, Tracker={settings.TRACKER_TYPE}, Video={settings.VIDEO_PATH}")
-    
+    print(f"[Main] Config: Model={settings.MODEL_NAME}, Tracker={settings.TRACKER_TYPE}")
+    print(f"[Main] Ingestion Mode: Streaming to Pulsar ({PULSAR_URL})")
+
+    # 1. Tracker (AI Model)
     tracker = create_tracker(settings.TRACKER_TYPE, settings.MODEL_NAME, conf_thres=settings.CONF_THRES)
-    emitter = JsonEmitter(settings.OUT_JSONL)
+    
+    # 2. Emitter (Gửi dữ liệu đi) -> Dùng PulsarEmitter
+    try:
+        emitter = PulsarEmitter(PULSAR_URL, PULSAR_TOPIC)
+    except Exception as e:
+        print(f"[Error] Không thể kết nối Pulsar: {e}")
+        print("Gợi ý: Kiểm tra xem container pulsar-broker đã chạy chưa (docker ps)")
+        exit(1)
+
+    # 3. Visualizer (Vẽ hình)
     visualizer = Visualizer()
 
     try:
-        # --- chạy tracking ---
-        for idx, record in enumerate(tracker.track(settings.VIDEO_PATH, show=False, classes=settings.CLASS_FILTER), start=1):
+        # --- VÒNG LẶP XỬ LÝ (PROCESSING LOOP) ---
+        # settings.VIDEO_PATH: Đường dẫn video hoặc 0 (webcam)
+        track_stream = tracker.track(settings.VIDEO_PATH, show=False, classes=settings.CLASS_FILTER)
+
+        for idx, record in enumerate(track_stream, start=1):
             frame = record["frame"]
             H, W = frame.shape[:2]
             objects = record["objects"]
 
-            # Hiển thị (Vẽ bbox và label)
+            # --- VISUALIZATION ---
+            # Vẽ khung hình và ID lên ảnh để xem
             visualizer.draw_tracks(frame, objects)
+            
+            # Vẽ đường ranh giới ảo (Virtual Line) để dễ debug Zone Filtering
+            # Ví dụ: Kẻ vạch đỏ ở 30% màn hình (bên trái là hành lang)
+            limit_x = int(W * 0.3) 
+            cv2.line(frame, (limit_x, 0), (limit_x, H), (0, 0, 255), 2)
+            cv2.putText(frame, "IGNORE AREA", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            cv2.putText(frame, "ACTIVE ZONE", (limit_x + 10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-            # map sang detections theo schema đã thống nhất
+            # --- MAPPING & FILTERING ---
             detections = []
             for j, obj in enumerate(objects):
+                # 1. Lấy tọa độ
                 x1, y1, x2, y2 = map(float, obj["bbox"])
-                w = x2 - x1
-                h = y2 - y1
-                cx = x1 + w/2.0
-                cy = y1 + h/2.0
+                w_box = x2 - x1
+                h_box = y2 - y1
+                cx = x1 + w_box / 2.0
+                cy = y1 + h_box / 2.0
+
+                # 2. --- THAY ĐỔI 2: ZONE FILTERING (Lọc vùng) ---
+                # Logic: Nếu tâm người nằm bên trái vạch đỏ (Hành lang) -> Bỏ qua
+                if cx < limit_x:
+                    continue 
+                # ------------------------------------------------
+
+                # 3. Đóng gói object hợp lệ
                 detections.append({
                     "det_id": f"{idx}-{j}",
                     "class": obj.get("label", "person"),
                     "class_id": int(obj.get("cls", 0)),
                     "conf": float(obj.get("conf", 0.0)),
                     "bbox": {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
-                    "bbox_norm": {"x": x1/W, "y": y1/H, "w": w/W, "h": h/H},
+                    "bbox_norm": {"x": x1/W, "y": y1/H, "w": w_box/W, "h": h_box/H},
                     "centroid": {"x": int(cx), "y": int(cy)},
                     "centroid_norm": {"x": cx/W, "y": cy/H},
                     "track_id": None if obj.get("id", -1) < 0 else int(obj["id"]),
                 })
 
-            # emit JSON (1 dòng / frame)
+            # --- EMIT (GỬI DỮ LIỆU) ---
+            # Gửi dữ liệu đã lọc lên Pulsar
             emitter.emit_frame(
                 pipeline_run_id=pipeline_run_id,
                 source=source,
                 frame_index=idx,
                 capture_ts_iso=datetime.now(timezone.utc).isoformat(),
                 image_size={"width": W, "height": H},
-                detections=detections,
+                detections=detections, 
                 runtime={
                     "model_name": settings.MODEL_NAME,
                     "tracker_type": settings.TRACKER_TYPE,
-                    "conf_thres": settings.CONF_THRES,
-                    "class_filter": settings.CLASS_FILTER
-                },
-                source_uri=settings.VIDEO_PATH
+                }
             )
 
-            # hiển thị
-            cv2.imshow("YOLO11 Tracking", frame)
+            # --- DISPLAY (HIỂN THỊ) ---
+            cv2.imshow("Retail Analytics (Zone Filtered)", frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
+                print("[Main] Stop signal received.")
                 break
+
+    except KeyboardInterrupt:
+        print("[Main] Interrupted by user.")
+    except Exception as e:
+        print(f"[Main] Error: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
+        print("[Main] Cleaning up resources...")
         emitter.close()
         cv2.destroyAllWindows()
+        print("[Main] Pipeline stopped.")
