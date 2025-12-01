@@ -58,6 +58,14 @@
       <version>${flink.version}</version>
       <scope>provided</scope>
     </dependency>
+
+    <!-- Hadoop Common - cần cho IcebergSource CatalogLoader -->
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-common</artifactId>
+      <version>3.3.4</version>
+      <scope>provided</scope>
+    </dependency>
   </dependencies>
 
   <build>
