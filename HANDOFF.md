@@ -1,12 +1,19 @@
 Current status
-- Pulsar broker đang healthy (dual-listener):
-  - `listeners=internal:pulsar://0.0.0.0:6650,external:pulsar://0.0.0.0:6650`
-  - `advertisedListeners=internal:pulsar://pulsar-broker:6650,external:pulsar://127.0.0.1:6650`
-  - `webServicePort=8082`
-- docker-compose map: `6650:6650`, `8082:8082`.
-- Bronze/Silver/Gold jobs đã chạy và commit dữ liệu thành công vào Iceberg.
-- **Grafana dashboards redesigned (v5)**: Cải thiện layout, thêm descriptions, icons, pie charts, color thresholds.
-- Namespace `lakehouse.rva` đã được tạo trong Iceberg REST catalog.
+- Docker Compose stack đang chạy (11 containers healthy).
+- **Automated Job Submission**: Service `flink-job-submitter` tự động submit 8 jobs khi khởi động stack.
+- **8 Flink jobs đang RUNNING** (sau khi restart stack và tách Gold jobs):
+  - `bronze_raw` - Pulsar → Bronze Iceberg
+  - `silver_detections` - Bronze → Silver (parse, dedupe, filter)
+  - `gold_minute_by_cam` - Silver → Gold aggregation per minute
+  - `gold_hour_by_cam` - Silver → Gold aggregation per hour
+  - `gold_people_per_minute` - Silver → Gold people count
+  - `gold_zone_heatmap` - Silver → Gold zone heatmap
+  - `gold_zone_dwell` - Silver → Gold zone dwell time
+  - `gold_track_summary` - Silver → Gold track statistics
+
+**Root cause đã fix (2025-12-01)**:
+- Gold job trước đó có 6 sinks ghi đồng thời vào 6 tables gây **SQLite BUSY lock** trong REST Catalog.
+- **Giải pháp**: Tách thành 6 job riêng biệt với shared `GoldJobBase.java`, mỗi job chỉ ghi 1 table.
 
 Grafana Dashboards (2025-11-25)
 - **Nguyên nhân gốc lỗi 0 data**: Trino datasource plugin **KHÔNG interpolate** Grafana template variables → bỏ template variables.
@@ -20,11 +27,13 @@ Grafana Dashboards (2025-11-25)
   - Track: 35 tracks, ~8.4h avg duration, 64.55% confidence, 13,460 frames
 
 Next steps
-- Tạo dữ liệu mới (chạy vision/main.py + replay) để có real-time data cho Grafana.
+- Chạy vision/main.py + replay để có real-time data cho các Gold tables.
+- Monitor Gold jobs để đảm bảo không bị FINISHED sớm (expect RUNNING liên tục).
 - Thêm alerting rules nếu cần monitor traffic anomalies.
-- Cân nhắc thêm map/heatmap visualization cho zone data.
 
 Paths / Artifacts
+- **Gold job classes (NEW)**: `flink-jobs/java/src/main/java/org/rva/gold/Gold*Job.java` (6 jobs + base)
+- **Backup file**: `flink-jobs/java/src/main/java/org/rva/gold/GoldStreamingJob.java.bak`
 - Grafana dashboards: `infrastructure/grafana/provisioning/dashboards/*.json` (v5 redesigned)
 - Pulsar config: `infrastructure/pulsar/conf/standalone.conf`
 - Flink ingest SQL: `flink-jobs/sql/bronze_ingest.sql`
@@ -33,9 +42,9 @@ Paths / Artifacts
 - Vision DeepSORT config: `vision/.env` (DS_* defaults tinh chỉnh)
 
 Latest checks
-- Grafana: 3 dashboards v5 hoạt động với data visualization đẹp và đủ metrics.
-- Gold tables: `gold_people_per_minute` (2 rows), `gold_zone_dwell` (71 rows), `gold_track_summary` (35 rows).
-- pulsar-broker healthy; `pulsar-admin brokers healthcheck` OK.
+- **Flink UI (localhost:8081)**: 8 jobs RUNNING, 8 slots available.
+- Gold tables đang được populate từ các job riêng biệt.
+- Không còn lỗi SQLite lock hoặc clock skew.
 
 Environment
 - Docker Compose stack; Python venv optional (`venv/`), Pulsar 6650 exposed to host.

@@ -86,6 +86,34 @@ services:
     
     networks:
       - retail-net
+
+  # Service tự động submit jobs khi Flink cluster sẵn sàng
+  flink-job-submitter:
+    build:
+      context: .
+      dockerfile: infrastructure/flink/Dockerfile
+    container_name: flink-job-submitter
+    command: /opt/flink/bin/submit-jobs.sh
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+      flink-taskmanager:
+        condition: service_started
+      iceberg-rest:
+        condition: service_healthy
+      pulsar-broker:
+        condition: service_healthy
+    environment:
+      AWS_REGION: ${S3_REGION}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
+    volumes:
+      - ./infrastructure/flink/conf:/opt/flink/conf
+    networks:
+      - retail-net
+    restart: "no"
+
   minio:
     build: ./infrastructure/minio
     container_name: minio
@@ -167,6 +195,11 @@ services:
       CATALOG_S3_REGION: ${S3_REGION}
     depends_on:
       - minio
+    healthcheck:
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/localhost/8181 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
     networks:
       - retail-net
