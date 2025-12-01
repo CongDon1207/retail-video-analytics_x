@@ -4,6 +4,8 @@ Ghi lại tất cả các công việc đã hoàn thành trong dự án Retail V
 
 ## 2025-12-01
 
+- **2025-12-01: Rewrite README.md with accurate Vision module info at README.md - Cập nhật Stack chính xác: YOLO11 + BoTSORT (thay vì GStreamer + YOLOv8 + DeepSort), thêm bảng thành phần, ports đúng theo docker-compose.yml, và Vision config table. Dựa trên docs/guide.md và source code thực tế (completed)**
+
 - **2025-12-01: Automate Flink job submission at infrastructure/flink/scripts/submit-jobs.sh & docker-compose.yml - Tạo script tự động submit 8 jobs khi khởi động stack. Thêm service `flink-job-submitter` vào Docker Compose. Fix lỗi healthcheck của `iceberg-rest` (thiếu curl, chuyển sang dùng bash tcp check) để đảm bảo dependency chain hoạt động đúng. Hệ thống hiện tự động chạy full pipeline (Bronze -> Silver -> 6 Gold) khi `docker compose up` (completed)**
 
 - **2025-12-01: Split Gold job into 6 separate jobs at flink-jobs/java/src/main/java/org/rva/gold/*.java - Tách GoldStreamingJob thành 6 job riêng biệt (GoldMinuteByCamJob, GoldHourByCamJob, GoldPeoplePerMinuteJob, GoldZoneHeatmapJob, GoldZoneDwellJob, GoldTrackSummaryJob) để tránh SQLite lock conflict khi REST Catalog xử lý concurrent commits. Tạo GoldJobBase.java làm abstract class chia sẻ cấu hình catalog. Tất cả 8 jobs (Bronze + Silver + 6 Gold) đang RUNNING ổn định (completed)**
